@@ -1,0 +1,4 @@
+configure(allprojects) {
+    ext.scalaVersion = "2.11.8"
+    ext.sparkVersion = "2.0.0"
+}

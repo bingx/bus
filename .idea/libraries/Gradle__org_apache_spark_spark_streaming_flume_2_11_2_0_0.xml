@@ -1,0 +1,11 @@
+<component name="libraryTable">
+  <library name="Gradle: org.apache.spark:spark-streaming-flume_2.11:2.0.0">
+    <CLASSES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.apache.spark/spark-streaming-flume_2.11/2.0.0/9969b10ed059576816eb7d17f5dd4d2dc4a8dfd1/spark-streaming-flume_2.11-2.0.0.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.apache.spark/spark-streaming-flume_2.11/2.0.0/22a01e08fd90ed17bdf7c258691e8e57ffa69a6a/spark-streaming-flume_2.11-2.0.0-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>
