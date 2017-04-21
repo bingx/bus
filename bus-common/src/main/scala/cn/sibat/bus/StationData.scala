@@ -1,5 +1,10 @@
 package cn.sibat.bus
 
+import org.apache.spark.sql.DataFrame
+import org.apache.spark.sql.functions._
+
+import scala.collection.mutable.ArrayBuffer
+
 /**
   * 站点数据
   * 线路，站点Id，站点名称，站点序号，站点经度，站点纬度
@@ -42,8 +47,8 @@ case class BusCardData(rId: String, lId: String, term: String, tradeType: String
   * @param stationSeqId   站点序号
   * @param buses          班次号
   */
-case class BusArrivalData(raw:String,carId:String,arrivalTime:String,leaveTime:String,nextStation:String
-                          ,firstStation:String,arrivalStation:String,stationSeqId:Long,buses:String)
+case class BusArrivalData(raw: String, carId: String, arrivalTime: String, leaveTime: String, nextStation: String
+                          , firstStation: String, arrivalStation: String, stationSeqId: Long, buses: String)
 
 class RoadInformation(busDataCleanUtils: BusDataCleanUtils) {
   def joinInfo(): Unit = {
@@ -53,10 +58,33 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) {
   }
 
   /**
+    * 这里是要自己传进来还是自己去加载好呢？
     * 转换成公交到站数据
     */
-  def toStation(): Unit = {
-    busDataCleanUtils.data
+  def toStation(stationDF: DataFrame): DataFrame = {
+
+    //计算线路中两个点（p1、p2）与gps点（p3）最近的点
+    // 组成p1p3->ld、p1p2->pd、p2p3->rd =>ld+rd<1.2*pd
+    val isRightRoute = udf { (route: String, lon: Double, lat: Double) => {
+      var flag = false
+      val min2 = Array(0.0, 0.0)
+      var lon_lat = new ArrayBuffer[String]()
+      lon_lat = lon_lat ++ Seq("null", "null")
+      stationDF.select(route).foreach(s => {
+        val s_lon = s.getDouble(s.fieldIndex("lon"))
+        val s_lat = s.getDouble(s.fieldIndex("lat"))
+        val dis = LocationUtil.distance(lon, lat, s_lon, s_lat)
+        if (min2.min > dis) {
+          min2(min2.indexOf(min2.min)) = dis
+          lon_lat = lon_lat.tail.+=(s_lon + "," + s_lat)
+          flag = true
+        }
+      })
+      flag
+    }
+    }
+    busDataCleanUtils.data.withColumn("isRight", isRightRoute(col("route"), col("lon"), col("lat")))
+    stationDF.select(col("route") === "route")
   }
 
   /**
