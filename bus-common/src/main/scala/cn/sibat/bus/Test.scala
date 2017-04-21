@@ -4,19 +4,19 @@ import org.apache.spark.sql.{DataFrame, Dataset, Row, SparkSession}
 
 import scala.collection.mutable.ArrayBuffer
 
-case class Test(id: String, num: String)
+case class TestBus(id: String, num: String)
 
 /**
   * hh
   * Created by kong on 2017/4/10.
   */
-object Test {
+object TestBus {
 
   def main(args: Array[String]): Unit = {
     val data = Array("a,0", "b,5", "c,3", "d,0", "b,0", "a,0")
     val spark = SparkSession.builder().config("spark.sql.warehouse.dir", "file:///c:/path/to/my").appName("t").master("local[*]").getOrCreate()
     import spark.implicits._
-    val df = spark.sparkContext.parallelize(data).map(_.split(",")).toDF("id","num").as[Test]
+    val df = spark.sparkContext.parallelize(data).map(_.split(",")).toDF("id","num").as[TestBus]
     df.show()
     df.printSchema()
 //      map(s => Test(s.split(",")(0), s.split(",")(1))).toDF()
