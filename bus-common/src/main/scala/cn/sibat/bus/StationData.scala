@@ -16,7 +16,7 @@ import scala.collection.mutable.ArrayBuffer
   * @param stationLon   站点经度
   * @param stationLat   站点纬度
   *
-  * Created by kong on 2017/4/11.
+  *                     Created by kong on 2017/4/11.
   */
 case class StationData(route: String, stationId: String, stationName: String, stationSeqId: Long, stationLon: Double, stationLat: Double)
 
@@ -63,8 +63,12 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) {
     */
   def toStation(stationDF: DataFrame): DataFrame = {
 
-    //计算线路中两个点（p1、p2）与gps点（p3）最近的点
-    // 组成p1p3->ld、p1p2->pd、p2p3->rd =>ld+rd<1.2*pd
+    /**
+      * 线路确认
+      * 计算线路中两个点（p1、p2）与gps点（p3）最近的点
+      * 组成p1p3->ld、p1p2->pd、p2p3->rd =>ld+rd<1.2*pd
+      * 符合条则认为这个点是在这条线路上
+      */
     val isRightRoute = udf { (route: String, lon: Double, lat: Double) => {
       var flag = false
       val min2 = Array(0.0, 0.0)
@@ -77,13 +81,19 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) {
         if (min2.min > dis) {
           min2(min2.indexOf(min2.min)) = dis
           lon_lat = lon_lat.tail.+=(s_lon + "," + s_lat)
-          flag = true
         }
       })
+      if (!lon_lat.forall(_.equals("null"))) {
+        val (s_lon_0, s_lat_0) = lon_lat(0).split(",").map(_.toDouble)
+        val (s_lon_1, s_lat_1) = lon_lat(1).split(",").map(_.toDouble)
+        val pd = LocationUtil.distance(s_lon_0, s_lat_0, s_lon_1, s_lat_1)
+        if (min2.sum < 1.2 * pd)
+          flag = true
+      }
       flag
-    }
-    }
+    }}
     busDataCleanUtils.data.withColumn("isRight", isRightRoute(col("route"), col("lon"), col("lat")))
+
     stationDF.select(col("route") === "route")
   }
 
