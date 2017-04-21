@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="WebServers">
+    <option name="servers">
+      <webServer id="3dba060b-ff30-4b44-a2b6-0d2278eb451e" name="172.20.36.248" url="http://172.20.36.248">
+        <fileTransfer host="172.20.36.248" port="22" rootFolder="/home/wuying" accessType="SFTP">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" />
+          </advancedOptions>
+          <option name="port" value="22" />
+        </fileTransfer>
+      </webServer>
+    </option>
+  </component>
+</project>
