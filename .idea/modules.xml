@@ -8,6 +8,12 @@
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/bus-common/bus-common_test.iml" filepath="$PROJECT_DIR$/.idea/modules/bus-common/bus-common_test.iml" group="bus-common" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/bus_main.iml" filepath="$PROJECT_DIR$/.idea/modules/bus_main.iml" group="bus" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/bus_test.iml" filepath="$PROJECT_DIR$/.idea/modules/bus_test.iml" group="bus" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/metro-common/metro-common.iml" filepath="$PROJECT_DIR$/.idea/modules/metro-common/metro-common.iml" group="metro-common" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/metro-common/metro-common_main.iml" filepath="$PROJECT_DIR$/.idea/modules/metro-common/metro-common_main.iml" group="metro-common" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/metro-common/metro-common_test.iml" filepath="$PROJECT_DIR$/.idea/modules/metro-common/metro-common_test.iml" group="metro-common" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/taxi-common/taxi-common.iml" filepath="$PROJECT_DIR$/.idea/modules/taxi-common/taxi-common.iml" group="taxi-common" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/taxi-common/taxi-common_main.iml" filepath="$PROJECT_DIR$/.idea/modules/taxi-common/taxi-common_main.iml" group="taxi-common" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/taxi-common/taxi-common_test.iml" filepath="$PROJECT_DIR$/.idea/modules/taxi-common/taxi-common_test.iml" group="taxi-common" />
     </modules>
   </component>
 </project>

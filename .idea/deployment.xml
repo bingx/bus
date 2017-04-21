@@ -1,14 +1,22 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="PublishConfigData" serverName="172.20.36.248">
+  <component name="PublishConfigData" autoUpload="Always" serverName="172.20.36.248">
     <serverData>
       <paths name="172.20.36.248">
         <serverdata>
           <mappings>
-            <mapping deploy="/bus" local="$PROJECT_DIR$" web="/" />
+            <mapping deploy="/bus" local="$PROJECT_DIR$" web="/bus" />
+            <mapping deploy="/bus/taxi-common" local="$PROJECT_DIR$/taxi-common" web="/bus/taxi-common" />
+            <mapping deploy="/bus/bus-common" local="$PROJECT_DIR$/bus-common" web="/bus/bus-common" />
+            <mapping deploy="/bus/metro-common" local="$PROJECT_DIR$/metro-common" web="/bus/metro-common" />
+            <mapping deploy="/bus/metro-common/src/main" local="$PROJECT_DIR$/metro-common/src/main" web="/bus/metro-common/src/main" />
+            <mapping deploy="/bus/bus-common/src/main" local="$PROJECT_DIR$/bus-common/src/main" web="/bus/bus-common/src/main" />
+            <mapping deploy="/bus/metro-common/src/test" local="$PROJECT_DIR$/metro-common/src/test" web="/bus/metro-common/src/test" />
+            <mapping deploy="/bus/bus-common/src/main" local="$PROJECT_DIR$/taxi-common/src/main" web="/bus/bus-common/src/main" />
           </mappings>
         </serverdata>
       </paths>
     </serverData>
+    <option name="myAutoUpload" value="ALWAYS" />
   </component>
 </project>
