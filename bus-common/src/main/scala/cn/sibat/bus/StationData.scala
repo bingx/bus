@@ -1,6 +1,7 @@
 package cn.sibat.bus
 
-import org.apache.spark.sql.DataFrame
+import org.apache.spark.broadcast.Broadcast
+import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.sql.functions._
 
 import scala.collection.mutable.ArrayBuffer
@@ -59,42 +60,123 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) {
 
   /**
     * 这里是要自己传进来还是自己去加载好呢？
+    *
     * 转换成公交到站数据
     */
-  def toStation(stationDF: DataFrame): DataFrame = {
+  def toStation(bStation: Broadcast[Array[StationData]]): DataFrame = {
 
-    /**
-      * 线路确认
-      * 计算线路中两个点（p1、p2）与gps点（p3）最近的点
-      * 组成p1p3->ld、p1p2->pd、p2p3->rd =>ld+rd<1.2*pd
-      * 符合条则认为这个点是在这条线路上
-      */
-    val isRightRoute = udf { (route: String, lon: Double, lat: Double) => {
-      var flag = false
-      val min2 = Array(0.0, 0.0)
-      var lon_lat = new ArrayBuffer[String]()
-      lon_lat = lon_lat ++ Seq("null", "null")
-      stationDF.select(route).foreach(s => {
-        val s_lon = s.getDouble(s.fieldIndex("lon"))
-        val s_lat = s.getDouble(s.fieldIndex("lat"))
-        val dis = LocationUtil.distance(lon, lat, s_lon, s_lat)
-        if (min2.min > dis) {
-          min2(min2.indexOf(min2.min)) = dis
-          lon_lat = lon_lat.tail.+=(s_lon + "," + s_lat)
-        }
+    import busDataCleanUtils.data.sparkSession.implicits._
+    //对每辆车的时间进行排序，进行shuffleSort还是进行局部sort呢？
+    busDataCleanUtils.data.groupByKey(row => row.getString(row.fieldIndex("carId")) + "," + row.getString(row.fieldIndex("upTime")).split("T")(0))
+      .mapGroups((s, it) => {
+        val result = new ArrayBuffer[String]()
+        var firstRow: Row = null
+        //局部sort，对每一辆车的每天的数据进行排序，内存应该占不大
+        it.toBuffer[Row].sortBy(row => row.getString(row.fieldIndex("upTime"))).foreach(row => {
+          val stationInfo = bStation.value.filter(s => s.route.equals(row.getString(row.fieldIndex("route"))))
+
+          /**
+            * 1.线路确认
+            * 计算线路中两个点（p1、p2）与gps点（p3）最近的点
+            * 组成p1p3->ld、p1p2->pd、p2p3->rd =>ld+rd<1.2*pd
+            * 符合条则认为这个点是在这条线路上
+            * 2.方向确认
+            * 取两个gps点（lastPoint，curPoint）分别与线路最近的一个点（可能同一个点）
+            * 线路上点的index为lastIndex,curIndex,距离lastDis,curDis
+            * lastIndex < curIndex or lastIndex = curIndex && lastDis < curDis
+            * 则方向是lastIndex->curIndex,否则lastIndex <- curIndex
+            * 3.位置确认
+            * 计算线路中两个点（p1、p2）与gps点（p3）最近的点
+            * 距离组成p1p3->ld、p1p2->pd、p2p3->rd => diff = ld+rd-pd
+            * min(diff)就是车的位置
+            */
+          val min2 = Array(Double.MaxValue, Double.MaxValue)
+          var array = new ArrayBuffer[StationData]()
+
+          var firstSD = stationInfo(0)
+          var minLocation = Double.MaxValue
+          var lastIndex = ""
+          var curIndex = ""
+
+          if (result.isEmpty) {
+            firstRow = row
+          }
+          var minLast = Double.MaxValue
+          var minCur = Double.MaxValue
+          var lastLinkIndex = firstSD.stationSeqId
+          var curLinkIndex = firstSD.stationSeqId
+
+          stationInfo.foreach(sd => {
+            val lon = row.getDouble(row.fieldIndex("lon"))
+            val lat = row.getDouble(row.fieldIndex("lat"))
+            val rd = LocationUtil.distance(sd.stationLon, sd.stationLat, lon, lat)
+
+            /** ==============================位置确认============================== */
+            if (array.nonEmpty) {
+              val ld = LocationUtil.distance(firstSD.stationLon, firstSD.stationLat, lon, lat)
+              val sdDis = LocationUtil.distance(firstSD.stationLon, firstSD.stationLat, sd.stationLon, sd.stationLat)
+              val diff = rd + ld - sdDis
+              if (diff < minLocation) {
+                lastIndex = sd.stationSeqId + "," + ld
+                curIndex = sd.stationSeqId + "," + rd
+                minLocation = diff
+              }
+              firstSD = sd
+            }
+
+            /** =============================线路确认 ============================= */
+            if (rd < min2.max) {
+              min2(min2.indexOf(min2.max)) = rd
+              if (array.size < 2)
+                array.+=(sd)
+              else
+                array = array.tail.+=(sd)
+            }
+
+            /** =============================方向确认============================= */
+            val lastDis = LocationUtil.distance(firstRow.getDouble(firstRow.fieldIndex("lon")), firstRow.getDouble(firstRow.fieldIndex("lat")), sd.stationLon, sd.stationLat)
+            val curDis = rd
+            if (lastDis < minLast) {
+              minLast = lastDis
+              lastLinkIndex = sd.stationSeqId
+            }
+            if (curDis < minCur) {
+              minCur = curDis
+              curLinkIndex = sd.stationSeqId
+            }
+            firstRow = row
+
+          })
+
+          val pd = LocationUtil.distance(array(0).stationLon, array(0).stationLat, array(1).stationLon, array(1).stationLat)
+
+          //线路线路标记
+          var isRightRoute = false
+          if (min2.sum < 1.2 * pd) {
+            isRightRoute = true
+          }
+          var direct = "unknown"
+          if (lastLinkIndex < curLinkIndex || (lastLinkIndex == curLinkIndex && minLast > minCur)) {
+            direct = "up"
+            //val direct = "last->cur"
+          } else if (lastLinkIndex > curLinkIndex || (lastLinkIndex == curLinkIndex && minLast > minCur)) {
+            direct = "down"
+            //val direct = "cur->last"
+          }
+          result.+=(row.mkString(",") + "," + isRightRoute + "," + lastIndex + "," + curIndex + "," + direct)
+        })
+
+        result.iterator
+      }).flatMap(it => {
+      //数据格式row,isRightRoute,lastIndex,lastDis,curIndex,curDis,direct
+      val result = new ArrayBuffer[BusArrivalData]()
+      it.foreach(s=>{
+
       })
-      if (!lon_lat.forall(_.equals("null"))) {
-        val (s_lon_0, s_lat_0) = lon_lat(0).split(",").map(_.toDouble)
-        val (s_lon_1, s_lat_1) = lon_lat(1).split(",").map(_.toDouble)
-        val pd = LocationUtil.distance(s_lon_0, s_lat_0, s_lon_1, s_lat_1)
-        if (min2.sum < 1.2 * pd)
-          flag = true
-      }
-      flag
-    }}
-    busDataCleanUtils.data.withColumn("isRight", isRightRoute(col("route"), col("lon"), col("lat")))
+      it
+    })
 
-    stationDF.select(col("route") === "route")
+    busDataCleanUtils.data
   }
 
   /**

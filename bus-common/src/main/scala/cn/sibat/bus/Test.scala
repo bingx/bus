@@ -1,10 +1,14 @@
 package cn.sibat.bus
 
-import org.apache.spark.sql.{DataFrame, Dataset, Row, SparkSession}
+import java.util.UUID
 
+import org.apache.spark.sql.{DataFrame, Dataset, Row, SparkSession}
+import org.apache.spark.sql.functions._
+
+import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
-case class TestBus(id: String, num: String)
+case class TestBus(id: String, num: String, or: String)
 
 /**
   * hh
@@ -13,22 +17,24 @@ case class TestBus(id: String, num: String)
 object TestBus {
 
   def main(args: Array[String]): Unit = {
-    val data = Array("a,0", "b,5", "c,3", "d,0", "b,0", "a,0")
+    val data = Array("a,0,A", "b,5,B", "c,3,C", "d,0,D", "b,0,E", "a,0,F")
     val spark = SparkSession.builder().config("spark.sql.warehouse.dir", "file:///c:/path/to/my").appName("t").master("local[*]").getOrCreate()
     import spark.implicits._
-    val df = spark.sparkContext.parallelize(data).map(_.split(",")).toDF("id","num").as[TestBus]
-    df.show()
-    df.printSchema()
-//      map(s => Test(s.split(",")(0), s.split(",")(1))).toDF()
-//    val result = df.groupByKey(row => row.getString(row.fieldIndex("id"))).flatMapGroups((s, it) => {
-//      it.map(row => row.mkString(","))
-//    }).map(s => {
-//      val split = s.split(",")
-//      (split(0),split(1))
-//    }).toDF("id","num")
-//    println(result.isInstanceOf[Dataset[Test]])
-//    result.show()
-//    result.printSchema()
+    val df = spark.sparkContext.parallelize(data).map(s => (s.split(",")(0), s.split(",")(1), s.split(",")(2))).toDF("id", "num", "or").as[TestBus]
+
+    var test: Row = null
+    val data2 = Array("0,AA", "6,BB")
+    val r = spark.sparkContext.parallelize(data2).map(s => (s.split(",")(0), s.split(",")(1))).toDF("num", "name")
+    //df.join(r,df.col("num") === r.col("num")-3,"inner").show()
+    val b = spark.sparkContext.broadcast(df.collect())
+    r.collect().foreach(s => {
+      if (test == null) {
+        test = s
+      }
+      val re = b.value.filter(tb => tb.num.equals(s.getString(s.fieldIndex("num"))))
+      println(re.length, re.mkString(","))
+      println(test.mkString(";"))
+    })
 
   }
 }
