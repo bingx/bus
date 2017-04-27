@@ -73,7 +73,8 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) {
         var firstRow: Row = null
         //局部sort，对每一辆车的每天的数据进行排序，内存应该占不大
         it.toBuffer[Row].sortBy(row => row.getString(row.fieldIndex("upTime"))).foreach(row => {
-          val stationInfo = bStation.value.filter(s => s.route.equals(row.getString(row.fieldIndex("route"))))
+          val stationInfo = bStation.value
+          val stationInfoMap = stationInfo.groupBy(sd => sd.route)
 
           /**
             * 1.线路确认
@@ -93,10 +94,35 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) {
           val min2 = Array(Double.MaxValue, Double.MaxValue)
           var array = new ArrayBuffer[StationData]()
 
-          var firstSD = stationInfo(0)
+          val lon = row.getDouble(row.fieldIndex("lon"))
+          val lat = row.getDouble(row.fieldIndex("lat"))
+          stationInfo.foreach(sd => {
+            val rd = LocationUtil.distance(sd.stationLon, sd.stationLat, lon, lat)
+
+            /** =============================线路确认 ============================= */
+            if (rd < min2.max) {
+              min2(min2.indexOf(min2.max)) = rd
+              if (array.size < 2)
+                array.+=(sd)
+              else
+                array = array.tail.+=(sd)
+            }
+
+          })
+
+          val pd = LocationUtil.distance(array(0).stationLon, array(0).stationLat, array(1).stationLon, array(1).stationLat)
+
+          //线路线路标记
+          var realRoute = ""
+          if (min2.sum < 1.2 * pd) {
+            realRoute = array(0).route + ";" + array(1).route
+          }
+
+          var firstSD = stationInfoMap.get(realRoute).get(0)
           var minLocation = Double.MaxValue
           var lastIndex = ""
           var curIndex = ""
+          var index = 0
 
           if (result.isEmpty) {
             firstRow = row
@@ -106,13 +132,11 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) {
           var lastLinkIndex = firstSD.stationSeqId
           var curLinkIndex = firstSD.stationSeqId
 
-          stationInfo.foreach(sd => {
-            val lon = row.getDouble(row.fieldIndex("lon"))
-            val lat = row.getDouble(row.fieldIndex("lat"))
+          stationInfoMap.get(realRoute).get.foreach(sd => {
             val rd = LocationUtil.distance(sd.stationLon, sd.stationLat, lon, lat)
 
             /** ==============================位置确认============================== */
-            if (array.nonEmpty) {
+            if (index != 0) {
               val ld = LocationUtil.distance(firstSD.stationLon, firstSD.stationLat, lon, lat)
               val sdDis = LocationUtil.distance(firstSD.stationLon, firstSD.stationLat, sd.stationLon, sd.stationLat)
               val diff = rd + ld - sdDis
@@ -122,15 +146,6 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) {
                 minLocation = diff
               }
               firstSD = sd
-            }
-
-            /** =============================线路确认 ============================= */
-            if (rd < min2.max) {
-              min2(min2.indexOf(min2.max)) = rd
-              if (array.size < 2)
-                array.+=(sd)
-              else
-                array = array.tail.+=(sd)
             }
 
             /** =============================方向确认============================= */
@@ -145,16 +160,9 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) {
               curLinkIndex = sd.stationSeqId
             }
             firstRow = row
-
+            index = 1
           })
 
-          val pd = LocationUtil.distance(array(0).stationLon, array(0).stationLat, array(1).stationLon, array(1).stationLat)
-
-          //线路线路标记
-          var isRightRoute = false
-          if (min2.sum < 1.2 * pd) {
-            isRightRoute = true
-          }
           var direct = "unknown"
           if (lastLinkIndex < curLinkIndex || (lastLinkIndex == curLinkIndex && minLast > minCur)) {
             direct = "up"
@@ -163,14 +171,14 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) {
             direct = "down"
             //val direct = "cur->last"
           }
-          result.+=(row.mkString(",") + "," + isRightRoute + "," + lastIndex + "," + curIndex + "," + direct)
+          result.+=(row.mkString(",") + "," + realRoute + "," + lastIndex + "," + curIndex + "," + direct)
         })
 
         result.iterator
       }).flatMap(it => {
       //数据格式row,isRightRoute,lastIndex,lastDis,curIndex,curDis,direct
       val result = new ArrayBuffer[BusArrivalData]()
-      it.foreach(s=>{
+      it.foreach(s => {
 
       })
       it
