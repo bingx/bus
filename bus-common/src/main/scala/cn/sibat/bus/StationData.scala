@@ -174,9 +174,9 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) {
           result.+=(row.mkString(",") + "," + realRoute + "," + lastIndex + "," + curIndex + "," + direct)
         })
 
-        result.iterator
+        result.toArray
       }).flatMap(it => {
-      //数据格式row,isRightRoute,lastIndex,lastDis,curIndex,curDis,direct
+      //数据格式row,realRoute,lastIndex,lastDis,curIndex,curDis,direct
       val result = new ArrayBuffer[BusArrivalData]()
       it.foreach(s => {
 
