@@ -165,10 +165,10 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) {
 
           var direct = "unknown"
           if (lastLinkIndex < curLinkIndex || (lastLinkIndex == curLinkIndex && minLast > minCur)) {
-            direct = "up"
+            direct = "1"
             //val direct = "last->cur"
           } else if (lastLinkIndex > curLinkIndex || (lastLinkIndex == curLinkIndex && minLast > minCur)) {
-            direct = "down"
+            direct = "2"
             //val direct = "cur->last"
           }
           result.+=(row.mkString(",") + "," + realRoute + "," + lastIndex + "," + curIndex + "," + direct)
@@ -178,9 +178,11 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) {
       }).flatMap(it => {
       //数据格式row,realRoute,lastIndex,lastDis,curIndex,curDis,direct
       val result = new ArrayBuffer[BusArrivalData]()
-      it.foreach(s => {
-
-      })
+      it.filter { str =>
+        val split = str.split(",")
+        val curDis = split(split.length - 2)
+        curDis.toDouble < 50.0
+      }
       it
     })
 

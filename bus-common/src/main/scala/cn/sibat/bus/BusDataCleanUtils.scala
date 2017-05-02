@@ -13,17 +13,18 @@ import scala.collection.mutable.ArrayBuffer
   * 应用不同场景，进行条件组合
   * Created by kong on 2017/4/10.
   */
-class BusDataCleanUtils(val data: DataFrame) {
+class BusDataCleanUtils(val data: DataFrame) extends Serializable{
+
+  import this.data.sparkSession.implicits._
 
   /**
     * 对公交车数据进行格式化,并转化成对应数据格式
     * 结果列名"sysTime", "dataType", "term", "carId", "route", "subRoute", "company", "status", "lon"
     * , "lat", "high", "upTime", "speed", "direct", "carSpeed", "mileage"
     *
-    * @param data 数据
     * @return busDataCleanUtils
     */
-  def dataFormat(data: Dataset[String]): BusDataCleanUtils = {
+  def dataFormat(): BusDataCleanUtils = {
     var colType = Array("String")
     colType = colType ++ ("String," * 7).split(",") ++ ("Double," * 3).split(",") ++ "String".split(",") ++ ("Double," * 4).split(",")
     val cols = Array("sysTime", "dataType", "term", "carId", "route", "subRoute", "company", "status", "lon"
@@ -46,48 +47,63 @@ class BusDataCleanUtils(val data: DataFrame) {
     * @return
     */
   def zeroPoint(): BusDataCleanUtils = {
-    newUtils(this.data.filter(col("lon") === 0.0 && col("lat") === 0.0))
+    newUtils(this.data.filter(col("lon") =!= 0.0 && col("lat") =!= 0.0))
   }
 
   /**
     * 过滤车一整天所有点都为0.0,0.0的数据,局部经纬度为0.0，0.0不做过滤
-    * 使用了groupByKey,有性能影响，如果局部经纬度为0.0，0.0没有影响的话
+    * 使用了groupByKey,很耗性能，如果局部经纬度为0.0，0.0没有影响的话
     * 使用 @link{ cn.sibat.bus.BusDataCleanUtils.zeroPoint() }
     *
     * @return
     */
   def allZeroPoint(): BusDataCleanUtils = {
-    import this.data.sparkSession.implicits._
     val result = this.data.groupByKey(row => row.getString(row.fieldIndex("upTime")).split("T")(0) + "," + row.getString(row.fieldIndex("carId")))
-      .mapGroups((s, it) => {
+      .flatMapGroups((s, it) => {
         var flag = true
-        it.foreach(row => {
-          val lon_lat = row.getString(row.fieldIndex("lon")) + "," + row.getString(row.fieldIndex("lat"))
-          if (!"0.0,0.0".equals(lon_lat))
+        val result = new ArrayBuffer[BusData]()
+        it.foreach { row =>
+          val lon_lat = row.getDouble(row.fieldIndex("lon")) + "," + row.getDouble(row.fieldIndex("lat"))
+          if (!"0.0,0.0".equals(lon_lat)) {
             flag = false
-        })
-        (flag, it)
-      }).filter(s => s._1).flatMap(s => s._2.map(row => {
-      BusData(row.getString(row.fieldIndex("sysTime")), row.getString(row.fieldIndex("dataType"))
-        , row.getString(row.fieldIndex("term")), row.getString(row.fieldIndex("carId"))
-        , row.getString(row.fieldIndex("route")), row.getString(row.fieldIndex("subRoute"))
-        , row.getString(row.fieldIndex("company")), row.getString(row.fieldIndex("status"))
-        , row.getDouble(row.fieldIndex("lon")), row.getDouble(row.fieldIndex("lat"))
-        , row.getDouble(row.fieldIndex("high")), row.getString(row.fieldIndex("upTime"))
-        , row.getDouble(row.fieldIndex("speed")), row.getDouble(row.fieldIndex("direct"))
-        , row.getDouble(row.fieldIndex("carSpeed")), row.getDouble(row.fieldIndex("mileage")))
-    })).toDF()
+          }
+          val bd = BusData(row.getString(row.fieldIndex("sysTime")), row.getString(row.fieldIndex("dataType"))
+            , row.getString(row.fieldIndex("term")), row.getString(row.fieldIndex("carId"))
+            , row.getString(row.fieldIndex("route")), row.getString(row.fieldIndex("subRoute"))
+            , row.getString(row.fieldIndex("company")), row.getString(row.fieldIndex("status"))
+            , row.getDouble(row.fieldIndex("lon")), row.getDouble(row.fieldIndex("lat"))
+            , row.getDouble(row.fieldIndex("high")), row.getString(row.fieldIndex("upTime"))
+            , row.getDouble(row.fieldIndex("speed")), row.getDouble(row.fieldIndex("direct"))
+            , row.getDouble(row.fieldIndex("carSpeed")), row.getDouble(row.fieldIndex("mileage")))
+          result += bd
+        }
+        if (!flag) {
+          result
+        } else {
+          None
+        }
+      }).filter(_ != null).toDF()
     newUtils(result)
   }
 
   /**
     * 过滤经纬度异常数据，异常条件为
-    * $lon>180 $lat>90
+    * 经纬度在中国范围内
+    * 中国的经纬度范围纬度：3.86-53.55，经度：73.66-135.05
     *
     * @return self
     */
   def errorPoint(): BusDataCleanUtils = {
-    newUtils(this.data.filter(col("lon") > lit(180.0) && col("lat") > lit(90.0)))
+    newUtils(this.data.filter(col("lon") < lit(135.05) && col("lat") < lit(53.55) && col("lon") > lit(73.66) && col("lat") > lit(3.86)))
+  }
+
+  /**
+    * 过滤定位失败的数据
+    *
+    * @return self
+    */
+  def filterStatus(): BusDataCleanUtils = {
+    newUtils(this.data.filter(col("status") === lit("0")))
   }
 
   /**
@@ -106,7 +122,6 @@ class BusDataCleanUtils(val data: DataFrame) {
     * @return df(BusData,interval,movement)
     */
   def intervalAndMovement(): BusDataCleanUtils = {
-    import this.data.sparkSession.implicits._
     val target = this.data.groupByKey(row => row.getString(row.fieldIndex("upTime")).split("T")(0) + row.getString(row.fieldIndex("carId")))
       .flatMapGroups((s, it) => {
         val result = new ArrayBuffer[String]()
@@ -131,7 +146,7 @@ class BusDataCleanUtils(val data: DataFrame) {
             firstLat = lastLat
           }
         })
-        result.iterator
+        result
       }).map(s => {
       val split = s.split(",")
       Tuple18.apply(split(0), split(1), split(2), split(3), split(4), split(5)
@@ -154,8 +169,9 @@ class BusDataCleanUtils(val data: DataFrame) {
 
   /**
     * 时间差计算
+    *
     * @param firstTime 前一个时间
-    * @param thisTime 当前时间
+    * @param thisTime  当前时间
     * @return error-> -1
     */
   private def dealTime(firstTime: String, thisTime: String): Long = {
