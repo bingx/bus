@@ -190,13 +190,6 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) {
   }
 
   /**
-    * 公交班次
-    */
-  def busService(): Unit = {
-
-  }
-
-  /**
     * 道路车速
     */
   def speed(): Unit = {
