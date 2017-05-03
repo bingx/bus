@@ -165,7 +165,7 @@ class BusDataCleanUtils(val data: DataFrame) extends Serializable{
     * @param df df
     * @return
     */
-  private def newUtils(df: DataFrame): BusDataCleanUtils = new BusDataCleanUtils(df)
+  private def newUtils(df: DataFrame): BusDataCleanUtils = BusDataCleanUtils(df)
 
   /**
     * 时间差计算

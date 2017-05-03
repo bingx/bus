@@ -86,7 +86,7 @@ class DataFrameUtils {
     val stand = dataFrame.schema.map(_.name).filter(!_.equals(changeCol))
     var df: DataFrame = dataFrame
     var castType = colsType
-    if (colsType == null) {
+    if (colsType.isEmpty || colsType == null) {
       castType = Array("String")
       castType = castType ++ ("String," * (cols.length - 1)).split(",")
     }
@@ -98,6 +98,6 @@ class DataFrameUtils {
   }
 }
 
-object DataFrameUtils{
+object DataFrameUtils {
   def apply: DataFrameUtils = new DataFrameUtils()
 }

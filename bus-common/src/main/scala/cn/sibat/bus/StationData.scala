@@ -8,9 +8,10 @@ import scala.collection.mutable.ArrayBuffer
 
 /**
   * 站点数据
-  * 线路，站点Id，站点名称，站点序号，站点经度，站点纬度
+  * 线路，来回站点标识（上行01,下行02），站点Id，站点名称，站点序号，站点经度，站点纬度
   *
   * @param route        线路
+  * @param direct       方向
   * @param stationId    站点ID
   * @param stationName  站点名称
   * @param stationSeqId 站点序号
@@ -19,7 +20,7 @@ import scala.collection.mutable.ArrayBuffer
   *
   *                     Created by kong on 2017/4/11.
   */
-case class StationData(route: String, stationId: String, stationName: String, stationSeqId: Long, stationLon: Double, stationLat: Double)
+case class StationData(route: String, direct: String, stationId: String, stationName: String, stationSeqId: Long, stationLon: Double, stationLat: Double)
 
 /**
   * 公交刷卡数据
@@ -52,6 +53,9 @@ case class BusArrivalData(raw: String, carId: String, arrivalTime: String, leave
                           , firstStation: String, arrivalStation: String, stationSeqId: Long, buses: String)
 
 class RoadInformation(busDataCleanUtils: BusDataCleanUtils) {
+
+  import busDataCleanUtils.data.sparkSession.implicits._
+
   def joinInfo(): Unit = {
     //shp文件，进行道路匹配
     busDataCleanUtils.data.sparkSession.read.textFile("")
@@ -65,7 +69,6 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) {
     */
   def toStation(bStation: Broadcast[Array[StationData]]): DataFrame = {
 
-    import busDataCleanUtils.data.sparkSession.implicits._
     //对每辆车的时间进行排序，进行shuffleSort还是进行局部sort呢？
     busDataCleanUtils.data.groupByKey(row => row.getString(row.fieldIndex("carId")) + "," + row.getString(row.fieldIndex("upTime")).split("T")(0))
       .mapGroups((s, it) => {
@@ -96,19 +99,20 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) {
 
           val lon = row.getDouble(row.fieldIndex("lon"))
           val lat = row.getDouble(row.fieldIndex("lat"))
-          stationInfo.foreach(sd => {
-            val rd = LocationUtil.distance(sd.stationLon, sd.stationLat, lon, lat)
+          stationInfoMap.foreach { line =>
+            line._2.foreach { sd =>
+              val rd = LocationUtil.distance(sd.stationLon, sd.stationLat, lon, lat)
 
-            /** =============================线路确认 ============================= */
-            if (rd < min2.max) {
-              min2(min2.indexOf(min2.max)) = rd
-              if (array.size < 2)
-                array.+=(sd)
-              else
-                array = array.tail.+=(sd)
+              /** =============================线路确认 ============================= */
+              if (rd < min2.max) {
+                min2(min2.indexOf(min2.max)) = rd
+                if (array.size < 2)
+                  array.+=(sd)
+                else
+                  array = array.tail.+=(sd)
+              }
             }
-
-          })
+          }
 
           val pd = LocationUtil.distance(array(0).stationLon, array(0).stationLat, array(1).stationLon, array(1).stationLat)
 
@@ -118,7 +122,7 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) {
             realRoute = array(0).route + ";" + array(1).route
           }
 
-          var firstSD = stationInfoMap.get(realRoute).get(0)
+          var firstSD = stationInfoMap.get(realRoute.split(";")(0)).get(0)
           var minLocation = Double.MaxValue
           var lastIndex = ""
           var curIndex = ""
@@ -177,14 +181,14 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) {
         result.toArray
       }).flatMap(it => {
       //数据格式row,realRoute,lastIndex,lastDis,curIndex,curDis,direct
-      val result = new ArrayBuffer[BusArrivalData]()
-      it.filter { str =>
-        val split = str.split(",")
-        val curDis = split(split.length - 2)
-        curDis.toDouble < 50.0
-      }
+      //      val result = new ArrayBuffer[BusArrivalData]()
+      //      it.filter { str =>
+      //        val split = str.split(",")
+      //        val curDis = split(split.length - 2)
+      //        curDis.toDouble < 50.0
+      //      }
       it
-    })
+    }).rdd.saveAsTextFile("D:/testData/公交处/toStation")
 
     busDataCleanUtils.data
   }
