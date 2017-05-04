@@ -184,10 +184,11 @@ class TaxiDataCleanUtils(val data:DataFrame) extends Serializable{
         result
       }).map(line => {
       val split = line.split(",")
-      Tuple12.apply(split(0), split(1).toDouble, split(2).toDouble, split(3), split(4), split(5).toDouble
-        , split(6).toDouble, split(7).toDouble, split(8).toDouble, split(9).toDouble, split(10).toDouble, split(11))
+      Tuple14.apply(split(0), split(1).toDouble, split(2).toDouble, split(3), split(4), split(5).toDouble
+        , split(6).toDouble, split(7).toDouble, split(8).toDouble, split(9).toDouble, split(10).toDouble, split(11)
+        ,split(12).toDouble,split(13).toDouble)
     }).toDF("carId","lon","lat","upTime","SBH","speed","direction","locationStatus",
-      "X","SMICarid","carStatus","carColor")
+      "X","SMICarid","carStatus","carColor","interval","movement")
     newUtils(target)
   }
 
