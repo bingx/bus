@@ -1,22 +1,24 @@
 package cn.sibat.metro
-import org.apache.spark.SparkConf
-import org.apache.spark.SparkContext
+import org.apache.spark.sql.SparkSession
 
-//统计字符出现次数
+/**
+  * Created by wing1995 on 2017/4/20
+  */
+
 object Test {
+  def main(args: Array[String]) = {
+    val spark = SparkSession
+      .builder()
+      .config("spark.sql.warehouse.dir", "file:/file:E:/bus")
+      .appName("Spark SQL Test")
+      .master("local[*]")
+      .getOrCreate()
 
-  def count(inputFile: String) {
-    val conf = new SparkConf().setAppName("example").setMaster("spark://172.20.36.248:4041").set("spark.executor.memory","1g")
-    val sc = new SparkContext(conf)
-    val line = sc.textFile(inputFile)
-
-    val counts = line.flatMap(_.split(',')).map((_, 1)).reduceByKey(_ + _)
-    counts.collect.foreach(println)
-    sc.stop()
-  }
-
-  def main(args: Array[String]): Unit ={
-    val inputFile = "linkage"
-    count(inputFile)
+    import spark.implicits._
+    //导入隐式转换
+    val ds = spark.read.text("E:\\bus\\metro-common\\src\\main\\resources\\testData").as[String]
+    var df = DataFormatUtils.apply.trans_metro_SZT(ds)
+    df = new DataCleanUtils(df).recoveryData.toDF
+    df.show(100)
   }
 }
