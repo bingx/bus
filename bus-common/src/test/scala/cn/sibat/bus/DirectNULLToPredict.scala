@@ -14,7 +14,7 @@ import scala.collection.mutable.ArrayBuffer
 object DirectNULLToPredict {
   def main(args: Array[String]) {
     val spark = SparkSession.builder().config("spark.sql.warehouse.dir", "file:///c:/path/to/my").appName("DirectNULLToPredict").master("local[*]").getOrCreate()
-    val url = "jdbc:mysql://210.75.252.138:4522/xbus_v4?user=xbpeng&password=xbpeng"
+    val url = ""
     val prop = new Properties()
     val lineDF = spark.read.jdbc(url, "line", prop)
     val lineStopDF = spark.read.jdbc(url, "line_stop", prop)
