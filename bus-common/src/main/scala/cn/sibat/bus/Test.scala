@@ -17,16 +17,16 @@ case class TestBus(id: String, num: String, or: String)
 object TestBus {
 
   def main(args: Array[String]): Unit = {
-    val field = Array("num","or")
-    val sb = new StringBuilder()
-    field.foreach(str => sb.append(s"$str == null ").append("&& "))
-    println(sb.toString.substring(0,sb.lastIndexOf(" &&")))
-    val data = Array("a,0,A", "b,5,B", "c,3,C", "d,0,D", "b,0,E", "a,0,F")
-    val spark = SparkSession.builder().config("spark.sql.warehouse.dir", "file:///c:/path/to/my").appName("t").master("local[*]").getOrCreate()
-    import spark.implicits._
-    val df = spark.sparkContext.parallelize(data).map(s => (s.split(",")(0), s.split(",")(1), s.split(",")(2))).toDF("id", "num", "or").as[TestBus]
-    //df.filter(sb.toString.substring(0,sb.lastIndexOf(" &&"))).show()
-    df.filter(col("num") > 0 && col("num") < 5).show()
+//    val field = Array("num","or")
+//    val sb = new StringBuilder()
+//    field.foreach(str => sb.append(s"$str == null ").append("&& "))
+//    println(sb.toString.substring(0,sb.lastIndexOf(" &&")))
+//    val data = Array("a,0,A", "b,5,B", "c,3,C", "d,0,D", "b,0,E", "a,0,F")
+//    val spark = SparkSession.builder().config("spark.sql.warehouse.dir", "file:///c:/path/to/my").appName("t").master("local[*]").getOrCreate()
+//    import spark.implicits._
+//    val df = spark.sparkContext.parallelize(data).map(s => (s.split(",")(0), s.split(",")(1), s.split(",")(2))).toDF("id", "num", "or").as[TestBus]
+//    //df.filter(sb.toString.substring(0,sb.lastIndexOf(" &&"))).show()
+//    df.filter(col("num") > 0 && col("num") < 5).show()
 
     //    var test: Row = null
     //    val data2 = Array("0,AA", "6,BB")
@@ -41,6 +41,13 @@ object TestBus {
     //      println(re.length, re.mkString(","))
     //      println(test.mkString(";"))
     //    })
-
+    //map模糊查询
+    val map = Map("M2143"-> "kk","M2133"->"oo")
+    var k:String = "null"
+    map.keySet.foreach{key=>
+      if(key.contains("M214"))
+        k = key
+    }
+    println(map.getOrElse(k,"55"))
   }
 }
