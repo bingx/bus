@@ -44,7 +44,7 @@ class BusDataCleanUtils(val data: DataFrame) extends Serializable{
   /**
     * 过滤经纬度为0.0,0.0的记录
     *
-    * @return
+    * @return self
     */
   def zeroPoint(): BusDataCleanUtils = {
     newUtils(this.data.filter(col("lon") =!= 0.0 && col("lat") =!= 0.0))
@@ -54,7 +54,8 @@ class BusDataCleanUtils(val data: DataFrame) extends Serializable{
     * 过滤车一整天所有点都为0.0,0.0的数据,局部经纬度为0.0，0.0不做过滤
     * 使用了groupByKey,很耗性能，如果局部经纬度为0.0，0.0没有影响的话
     * 使用 @link{ cn.sibat.bus.BusDataCleanUtils.zeroPoint() }
-    *
+    * 对于不符合条件的数据用返回None替代null，null在序列化的时候会出错，过滤的时候可以识别为null
+    * 同时Row类型也不能序列化转化，不要用row做返回
     * @return
     */
   def allZeroPoint(): BusDataCleanUtils = {

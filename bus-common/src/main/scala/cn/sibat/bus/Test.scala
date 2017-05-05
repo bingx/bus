@@ -49,25 +49,28 @@ object TestBus {
     //        k = key
     //    }
     //    println(map.getOrElse(k,"55"))
-    val theta1 = (0.0 to math.Pi / 2 by 0.01)
-    val theta2 = (0.0 to math.Pi / 2 by 0.01)
-    val p1 = (0.0 to 1 by 0.01)
-    val max2 = Array(Double.MaxValue,Double.MinValue)
-    theta1.foreach { t1 =>
-      theta2.foreach { t2 =>
-        p1.foreach { p_1 =>
-          val p_2 = 1.0 - p_1
-          if ((p_1*math.cos(t2)+p_2*math.cos(t1))/(math.cos(t1)*math.cos(t2)) < 1.2){
-            val dis = math.tan(t1)*p_1
-            if (max2(0) > dis)
-              max2(0) = dis
-            if (max2(1) < dis)
-              max2(1) = dis
-            //println(t1,t2,p_1,p_2)
-          }
-        }
-      }
-    }
-    println(max2.mkString(","))
+//    val theta1 = (0.0 to math.Pi / 2 by 0.01)
+//    val theta2 = (0.0 to math.Pi / 2 by 0.01)
+//    val p1 = (0.0 to 1 by 0.01)
+//    val max2 = Array(Double.MaxValue,Double.MinValue)
+//    theta1.foreach { t1 =>
+//      theta2.foreach { t2 =>
+//        p1.foreach { p_1 =>
+//          val p_2 = 1.0 - p_1
+//          if ((p_1*math.cos(t2)+p_2*math.cos(t1))/(math.cos(t1)*math.cos(t2)) < 1.2){
+//            val dis = math.tan(t1)*p_1
+//            if (max2(0) > dis)
+//              max2(0) = dis
+//            if (max2(1) < dis)
+//              max2(1) = dis
+//            //println(t1,t2,p_1,p_2)
+//          }
+//        }
+//      }
+//    }
+//    println(max2.mkString(","))
+
+    val d = Array(1,1,None)
+    d.map(_.toString.toInt).foreach(println)
   }
 }
