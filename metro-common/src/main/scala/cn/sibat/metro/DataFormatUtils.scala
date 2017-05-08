@@ -16,7 +16,7 @@ class DataFormatUtils {
     * 默认将SZT刷卡产生的原始记录中的每一列贴上字段标签
     * 字段名称：0.记录编码 1.卡片逻辑编码 2.刷卡设备终端编码 3.公司编码 4.交易类型 5.交易金额 6.卡内余额
     * 7.未知字段 8.拍卡时间 9.成功标识 10.未知时间1 11.未知时间2 12.公司名称 13.站点名称 14.车辆编号
-    * @param data
+    * @param data 原始数据
     * @return
     */
   def trans_SZT(data: Dataset[String]): DataFrame = {
@@ -30,7 +30,7 @@ class DataFormatUtils {
   /**
     * 从原始数据中删选出地铁刷卡数据，并给地铁打卡数据贴上字段标签
     * 字段名称：0.记录编码 1.卡片逻辑编码 2.终端编码 3.交易类型 4.拍卡时间 5.线路名称 6.站点名称 7.闸机标识
-    * @param data
+    * @param data 原始数据
     * @return
     */
   def trans_metro_SZT(data: Dataset[String]): DataFrame = {
@@ -44,7 +44,7 @@ class DataFormatUtils {
   /**
     * 从原始数据中筛选出公交刷卡数据，并给公交刷卡数据贴上对应的字段标签
     * 字段名称：0.记录编码 1.卡片逻辑编码 2.终端编码 3.交易类型 4.拍卡时间 5.公司名称 6.线路名称 7.车牌号
-    * @param data
+    * @param data 原始数据
     * @return
     */
   def trans_bus_SZT(data: Dataset[String]): DataFrame = {
@@ -53,6 +53,17 @@ class DataFormatUtils {
       .map(line => bus_SZT(line(0), line(1), line(2), line(4), line(8), line(12), line(13), line(14)))
       .toDF()
     bus_SZT_df
+  }
+
+  /**
+    * @param data 固定站点数据
+    * @return
+    */
+  def trans_metro_station(data: Dataset[String]): DataFrame = {
+    val metro_station_df= data.map(_.split(","))
+      .map(line => metro_station(line(0), line(1), line(2), line(3)))
+      .toDF()
+    metro_station_df
   }
 }
 
@@ -68,6 +79,8 @@ case class metro_SZT(recordCode: String, logicCode: String, terminalCode: String
 case class bus_SZT(recordCode: String, logicCode: String, terminalCode: String, transType: String,
                    cardTime: String, compName: String, routeName: String, licenseNum: String
                   )
+
+case class metro_station(siteId: String, siteNameStatic: String, routeId: String, routeNameStatic: String)
 
 object DataFormatUtils{
   def apply: DataFormatUtils = new DataFormatUtils()
