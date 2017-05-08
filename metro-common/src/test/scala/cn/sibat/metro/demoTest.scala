@@ -28,7 +28,7 @@ object demoTest extends App {
     (268019, "地铁二号线", "西丽")
   ).toDF("siteId", "routeNameStatic", "siteNameStatic")
 
-  val result = SZT.join(station, Seq("siteId")) //insert records
+  val result = SZT.join(station, Seq("siteId")) //如果是unoin将只是添加记录，相当于insert
   result.withColumn("routeName", when(col("routeName") =!= col("routeNameStatic"), col("routeNameStatic")).otherwise(col("routeName")))
     .withColumn("siteName", when(col("siteName") === "None", col("siteNameStatic")).otherwise(col("siteName")))
     .select("siteId", "recordCode", "routeName", "siteName").show()
