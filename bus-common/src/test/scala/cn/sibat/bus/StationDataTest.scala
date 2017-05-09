@@ -18,13 +18,16 @@ object StationDataTest {
       new StationData(route, direct, stationId, stationName, stationSeqId.toInt, stationLon.toDouble, stationLat.toDouble)
     }.collect())
 
-    val data = spark.read.textFile("D:/testData/公交处/data/2016-12-01/00.gz/part-r-00000.gz")
+    val data = spark.read.textFile("D:/testData/公交处/data/2016-12-01/*/*")
     val busDataCleanUtils = new BusDataCleanUtils(data.toDF())
-//    val filter = busDataCleanUtils.dataFormat().zeroPoint().filterStatus()
-//    val roadInformation = new RoadInformation(filter)
-//    roadInformation.toStation(bStation)
-    val colLength = udf{(route:String)=>route.length}
-    busDataCleanUtils.dataFormat().data.select("route").withColumn("length",colLength(col("route"))).distinct().filter(col("length") =!= 5).show()
+    val filter = busDataCleanUtils.dataFormat().zeroPoint().filterStatus()
+    val roadInformation = new RoadInformation(filter)
+
+    //roadInformation.toStation(bStation)
+    roadInformation.routeConfirm(bStation)
+
+//    val colLength = udf{(route:String)=>route.length}
+//    busDataCleanUtils.dataFormat().data.select("route").withColumn("length",colLength(col("route"))).distinct().filter(col("length") =!= 5).show()
 //    val min2 = Array(Double.MaxValue, Double.MaxValue)
 //    var array = new ArrayBuffer[String]()
 //    var count = 0

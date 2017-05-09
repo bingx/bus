@@ -4,6 +4,7 @@ import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.sql.functions._
 
+import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
 /**
@@ -68,19 +69,21 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) {
     * 组成p1p3->ld、p1p2->pd、p2p3->rd =>ld+rd<1.2*pd
     * 符合条则认为这个点是在这条线路上
     */
-  def routeConfirm(bStation: Broadcast[Array[StationData]]): Unit ={
+  def routeConfirm(bStation: Broadcast[Array[StationData]]): Unit = {
     distinctLonLat().groupByKey(row => row.getString(row.fieldIndex("carId")) + "," + row.getString(row.fieldIndex("upTime")))
       .flatMapGroups((s, it) => {
         //局部sort，对每一辆车的每天的数据进行排序，内存应该占不大
-        var gps = it.toBuffer[Row].sortBy(row => row.getString(row.fieldIndex("upTime"))).map(_.mkString(","))
+        val gps = it.toBuffer[Row].sortBy(row => row.getString(row.fieldIndex("upTime"))).map(_.mkString(","))
         val stationMap = bStation.value.groupBy(sd => sd.route + "," + sd.direct)
+        val map = new mutable.HashMap[String, Set[Int]]()
+        val upRoute = new mutable.HashSet[String]()
 
         stationMap.foreach { route =>
-          gps = gps.map { row =>
-            var result = row
+          gps.foreach { row =>
             val split = row.split(",")
             val lon = split(1).toDouble
             val lat = split(2).toDouble
+            upRoute.+=(split(3))
             val min2 = Array(Double.MaxValue, Double.MaxValue)
             var array = new ArrayBuffer[StationData]()
             route._2.foreach { sd =>
@@ -92,18 +95,35 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) {
                 else
                   array = array.tail.+=(sd)
               }
+              if (dis < 50.0 && (sd.stationSeqId == 1 || sd.stationSeqId == route._2.length)) {
+                var get = map.getOrElse(route._1, Set[Int]())
+                get = get ++ Seq(0, sd.stationSeqId)
+                map.update(route._1, get)
+              }
             }
             if (array.size > 1) {
               val pd = LocationUtil.distance(array(0).stationLon, array(0).stationLat, array(1).stationLon, array(1).stationLat)
               if (min2.sum < 1.2 * pd) {
-                result = result + "," + route._1
+                var get = map.getOrElse(route._1, Set[Int]())
+                get = get ++ Seq(array(0).stationSeqId, array(1).stationSeqId)
+                map.update(route._1, get)
               }
             }
-            result
           }
         }
-        gps.iterator
-      })
+        val rate = new ArrayBuffer[String]()
+        map.foreach { m =>
+          val lineSize = stationMap.getOrElse(m._1, Array()).length
+          if (m._2.contains(0))
+            rate += s + "," + m._1 + ",0;" + (m._2.size.toDouble - 1) / lineSize + "," + upRoute.mkString(",")
+          else
+            rate += s + "," + m._1 + "," + m._2.size.toDouble / lineSize + "," + upRoute.mkString(",")
+        }
+        rate.iterator
+      }).rdd.saveAsTextFile("D:/testData/公交处/rate")
+    //站点命中率=gps命中站点数/线路总站点数
+
+
   }
 
   /**
@@ -346,11 +366,11 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) {
     * 去掉经纬度重复数据，不考虑时间
     * 主要用于对历史道路识别匹配加速计算
     *
-    * @return df("carId","lon","lat","upTime 格式：yyyy-MM-dd")
+    * @return df("carId","lon","lat","route","upTime 格式：yyyy-MM-dd")
     */
   def distinctLonLat(): DataFrame = {
     val upTime2Data = udf { (upTime: String) => upTime.split("T")(0) }
-    busDataCleanUtils.toDF.select(col("carId"), col("lon"), col("lat"), upTime2Data(col("upTime")).as("upTime")).distinct()
+    busDataCleanUtils.toDF.select(col("carId"), col("lon"), col("lat"), col("route"), upTime2Data(col("upTime")).as("upTime")).distinct()
   }
 }
 

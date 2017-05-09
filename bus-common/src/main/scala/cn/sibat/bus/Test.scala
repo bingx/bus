@@ -70,7 +70,8 @@ object TestBus {
 //    }
 //    println(max2.mkString(","))
 
-    val d = Array(1,1,None)
-    d.map(_.toString.toInt).foreach(println)
+    val a = new mutable.HashSet[Int]()
+    (0 to 10).foreach(a.+=)
+    println(a.mkString(","))
   }
 }

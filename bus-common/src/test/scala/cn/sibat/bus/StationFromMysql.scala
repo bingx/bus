@@ -11,7 +11,7 @@ import scala.collection.mutable.ArrayBuffer
   * 从mysql中读取站点静态数据
   * Created by kong on 2017/5/3.
   */
-object DirectNULLToPredict {
+object StationFromMysql {
   def main(args: Array[String]) {
     val spark = SparkSession.builder().config("spark.sql.warehouse.dir", "file:///c:/path/to/my").appName("DirectNULLToPredict").master("local[*]").getOrCreate()
     val url = ""
