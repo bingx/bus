@@ -30,15 +30,16 @@ object demoTest {
       (268018, "地铁二号线", "车公庙"),
       (268019, "地铁二号线", "西丽")
     ).toDF("siteId", "routeNameStatic", "siteNameStatic")
-
+    //恢复数据
     var result = SZT.join(station, Seq("siteId")) //join not add union(insert records)
       .withColumn("routeName", when(col("routeName") =!= col("routeNameStatic"), col("routeNameStatic")).otherwise(col("routeName")))
       .withColumn("siteName", when(col("siteName") === "None", col("siteNameStatic")).otherwise(col("siteName")))
       .select("siteId", "recordCode", "cardTime", "cardCode", "routeName", "siteName")
-
+    //生成时间戳
     val ts = unix_timestamp($"cardTime", "yyyy-MM-dd HH:mm:ss").cast("timestamp")
     result = result
       .withColumn("dateStamp", ts)
       .withColumn("dateColumn", col("dateStamp").cast(DateType))
+
   }
 }

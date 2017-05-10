@@ -1,6 +1,7 @@
 package cn.sibat.metro
 
 import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.functions.{col, _}
 
 /**
   * 测试数据输出情况
@@ -16,14 +17,25 @@ object Test {
       .getOrCreate()
 
     //读取原始数据，格式化
-    val ds = spark.read.textFile("E:\\trafficDataAnalysis\\testData")
-    val ds_station = spark.read.textFile("E:\\trafficDataAnalysis\\subway_station")
-    val df = DataFormatUtils.apply.trans_metro_SZT(ds)
-    val df_station = DataFormatUtils.apply.trans_metro_station(ds_station)
+    val ds = spark.read.textFile("E:\\trafficDataAnalysis\\testData\\P_GJGD_SZT_20170101")
+    val df_SZT = DataFormatUtils.apply.trans_SZT(ds)
+    val toInt = udf[Int, String]( _.toInt)
+    df_SZT.withColumn("recordCodeNew", toInt(col("recordCode"))).orderBy(asc("recordCodeNew")).show(100)
+//    val ds_station = spark.read.textFile("E:\\trafficDataAnalysis\\subway_station")
+//    val df_metro = DataFormatUtils.apply.trans_metro_SZT(ds)
+//    val df_station = DataFormatUtils.apply.trans_metro_station(ds_station)
+//
+//    执行数据恢复
+//    val df_result = new DataCleanUtils(df).recoveryData(df_station).toDF
 
-    //执行数据清洗
-    val df_result = new DataCleanUtils(df).recoveryData(df_station).toDF
-    println(df_result.filter(df_result("siteName").contains("车公庙")).count())
+//    //测试SZT打卡时间分布
+//    val colHour = udf {(cardTime: String) => cardTime.slice(11, 13)}
+//    val df_SZT = DataFormatUtils.apply.trans_SZT(ds)
+//    df_metro.withColumn("hour", colHour(col("cardTime"))).filter(col("hour") === "04").select("cardCode", "hour")
+//      .join(df_metro, Seq("cardCode"), "inner")
+//      .select("cardCode", "hour", "recordCode", "terminalCode", "transType", "cardTime", "routeName", "siteName", "GateMark")
+//      .show()
+
   }
 }
 

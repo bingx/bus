@@ -35,11 +35,25 @@ class DataCleanUtils(val data: DataFrame) {
     var recoveryData = tmpData.join(dataStation, Seq("siteId"))
     recoveryData = recoveryData.withColumn("siteName", when(col("siteName").equalTo("siteNameStatic"), col("siteName")).otherwise(col("siteNameStatic")))
       .withColumn("routeName", when(col("routeName").equalTo(col("routeNameStatic")), col("routeName")).otherwise(col("routeNameStatic")))
-      .select("recordCode", "logicCode", "terminalCode", "transType", "cardTime", "routeName", "siteName", "GateMark")
+      .select("recordCode", "cardCode", "terminalCode", "transType", "cardTime", "routeName", "siteName", "GateMark")
     newUtils(recoveryData)
+  }
+
+  /**
+    * 添加日期列
+    * 将深圳通数据文件中的打卡时间为每天的4：00到次日4：00的记录记为相同日期
+    * 此日期添加到DataFrame
+    * @return
+    */
+  def isToday: DataCleanUtils = {
+    val dateCol = udf { (s: String) =>
+      s.matches("2017-01-01 (?=0[4-9]|1[0-9]|2[0-3]).+")
+    }
+    val dfWithDate = this.data.withColumn("date", dateCol(col("cadTime")))
+    newUtils(dfWithDate)
   }
 }
 
-object BusDataCleanUtils {
+object DataCleanUtils {
   def apply(data: DataFrame): DataCleanUtils = new DataCleanUtils(data)
 }

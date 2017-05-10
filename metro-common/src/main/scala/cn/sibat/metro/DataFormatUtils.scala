@@ -56,6 +56,7 @@ class DataFormatUtils {
   }
 
   /**
+    * 字段名称：0.站点Id 1.站点名称 2.路线Id 3.路线名称
     * @param data 固定站点数据
     * @return
     */
@@ -72,11 +73,11 @@ case class SZT(recordCode: String, logicCode: String, terminalCode: String, comp
                unknownTime2: String, compName: String, siteName: String, vehicleCode: String
               )
 
-case class metro_SZT(recordCode: String, logicCode: String, terminalCode: String, transType: String,
+case class metro_SZT(recordCode: String, cardCode: String, terminalCode: String, transType: String,
                      cardTime: String, routeName: String, siteName: String, GateMark: String
                     )
 
-case class bus_SZT(recordCode: String, logicCode: String, terminalCode: String, transType: String,
+case class bus_SZT(recordCode: String, cardCode: String, terminalCode: String, transType: String,
                    cardTime: String, compName: String, routeName: String, licenseNum: String
                   )
 
