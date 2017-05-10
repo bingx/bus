@@ -17,10 +17,9 @@ object Test {
       .getOrCreate()
 
     //读取原始数据，格式化
-    val ds = spark.read.textFile("E:\\trafficDataAnalysis\\testData\\P_GJGD_SZT_20170101")
-    val df_SZT = DataFormatUtils.apply.trans_SZT(ds)
-    val toInt = udf[Int, String]( _.toInt)
-    df_SZT.withColumn("recordCodeNew", toInt(col("recordCode"))).orderBy(asc("recordCodeNew")).show(100)
+    val ds = spark.read.textFile("E:\\trafficDataAnalysis\\testData\\")
+    val df_SZT = DataFormatUtils(ds).trans_SZT
+    DataCleanUtils(df_SZT).addDate.toDF.select("cardTime", "newDate")
 //    val ds_station = spark.read.textFile("E:\\trafficDataAnalysis\\subway_station")
 //    val df_metro = DataFormatUtils.apply.trans_metro_SZT(ds)
 //    val df_station = DataFormatUtils.apply.trans_metro_station(ds_station)
