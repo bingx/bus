@@ -30,7 +30,7 @@ object demoTest {
       (268018, "地铁二号线", "车公庙"),
       (268019, "地铁二号线", "西丽")
     ).toDF("siteId", "routeNameStatic", "siteNameStatic")
-    //恢复数据
+    //恢复“站点名称”字段记录
     var result = SZT.join(station, Seq("siteId")) //join not add union(insert records)
       .withColumn("routeName", when(col("routeName") =!= col("routeNameStatic"), col("routeNameStatic")).otherwise(col("routeName")))
       .withColumn("siteName", when(col("siteName") === "None", col("siteNameStatic")).otherwise(col("siteName")))
