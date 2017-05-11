@@ -9,9 +9,7 @@ import org.apache.spark.sql._
   * Created by wing1995 on 2017/5/4.
   */
 class DataFormatUtils(data: Dataset[String]) {
-  val sparkSession = SparkSession.builder.getOrCreate()
-  import sparkSession.implicits._
-
+  import data.sparkSession.implicits._
   /**
     * 默认将SZT刷卡产生的原始记录中的每一列贴上字段标签
     * 字段名称：0.记录编码 1.卡片逻辑编码 2.刷卡设备终端编码 3.公司编码 4.交易类型 5.交易金额 6.卡内余额

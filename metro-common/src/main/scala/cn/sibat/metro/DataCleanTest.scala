@@ -7,7 +7,7 @@ import org.apache.spark.sql.functions.{col, _}
   * 测试数据输出情况
   * Created by wing1995 on 2017/4/20
   */
-object Test {
+object DataCleanTest {
   def main(args: Array[String]) = {
     val spark = SparkSession
       .builder()
@@ -37,7 +37,7 @@ object Test {
 
   }
 }
-
+//20170101数据计数（以供参考）
 //4519343 result_subway
 //698447 to_recovery
 //698447 missing

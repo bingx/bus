@@ -5,7 +5,7 @@ import org.apache.spark.SparkConf
 /**
   * Created by wing1995 on 2017/4/20.
   */
-object Word {
+object WordTest {
   def countWords(sc: SparkContext) = {
     // Load our input data
     val input = sc.textFile("E:/trafficDataAnalysis/SZTDataCheck/testData.txt")

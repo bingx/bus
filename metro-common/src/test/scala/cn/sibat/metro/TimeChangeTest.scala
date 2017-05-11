@@ -42,19 +42,3 @@ object TimeChange {
 //    println(stamp2time)
   }
 }
-//    //刷卡日期判断
-//    val judgeDate = udf { dateStamp: Long =>
-//      val Date = TimeChange.apply.stamp2time(dateStamp, "yyyy-MM-dd") //当前日期
-//      val initialTime = TimeChange.apply.time2stamp(Date, "yyyy-MM-dd") //当前日期的凌晨0点
-//      val beginTime =  initialTime + 4 * 60 * 60 * 1000 //从当前日期的凌晨4点开始
-//      val overTime = initialTime + 24 * 6 * 6 * 1000 //到第二天凌晨4点结束
-//      val formerDate = TimeChange.apply.stamp2time(initialTime - 24 * 6 * 6 * 1000, "yyyy-MM-dd") //前一个日期
-//      val nextDate = TimeChange.apply.stamp2time(overTime, "yyyy-MM-dd") //后一个日期
-//
-//      if(dateStamp > beginTime && dateStamp < overTime)
-//        Date
-//      else if (dateStamp < beginTime)
-//        formerDate
-//      else
-//        nextDate
-//    }
