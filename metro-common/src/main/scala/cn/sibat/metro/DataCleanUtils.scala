@@ -35,11 +35,29 @@ class DataCleanUtils(val data: DataFrame) {
     var recoveryData = tmpData.join(dataStation, Seq("siteId"))
     recoveryData = recoveryData.withColumn("siteName", when(col("siteName").equalTo("siteNameStatic"), col("siteName")).otherwise(col("siteNameStatic")))
       .withColumn("routeName", when(col("routeName").equalTo(col("routeNameStatic")), col("routeName")).otherwise(col("routeNameStatic")))
-      .select("recordCode", "logicCode", "terminalCode", "transType", "cardTime", "routeName", "siteName", "GateMark")
+      .select("recordCode", "cardCode", "terminalCode", "transType", "cardTime", "routeName", "siteName", "GateMark", "date")
     newUtils(recoveryData)
+  }
+
+  /**
+    * 针对深圳通原始数据，添加日期列
+    * 将深圳通数据文件中的打卡时间为每天的4：00到次日4：00的记录记为当日日期，4:00之前的日期指定为前一天的日期
+    * 将此日期添加到DataFrame
+    * @return
+    */
+  def addDate(): DataCleanUtils = {
+    val time2date = udf{(time: String) => time.split(" ")(0)}
+    val addStamp = this.data.withColumn("dateStamp", unix_timestamp(col("cardTime"), "yyyy-MM-dd HH:mm:ss"))
+    val addDate = addStamp.withColumn("oldDate", time2date(col("cardTime"))) //旧日期
+    val addBeginTime = addDate.withColumn("beginTime", unix_timestamp(col("oldDate"), "yyyy-MM-dd") + 60 * 60 * 4)
+    val addEndTime = addBeginTime.withColumn("endTime", unix_timestamp(col("oldDate"), "yyyy-MM-dd") + 60 * 60 * 28)
+    val addNewDate = addEndTime.withColumn("date", when(col("dateStamp") > col("beginTime") && col("endTime") > col("dateStamp"), col("oldDate"))
+      .otherwise(date_format((col("dateStamp") - 60 * 60 * 24).cast("timestamp"), "yyyy-MM-dd")))
+      .drop("dateStamp", "oldDate", "beginTime", "endTime")
+    newUtils(addNewDate)
   }
 }
 
-object BusDataCleanUtils {
+object DataCleanUtils {
   def apply(data: DataFrame): DataCleanUtils = new DataCleanUtils(data)
 }
