@@ -70,8 +70,21 @@ object TestBus {
 //    }
 //    println(max2.mkString(","))
 
-    val a = new mutable.HashSet[Int]()
-    (0 to 10).foreach(a.+=)
-    println(a.mkString(","))
+    val spark = SparkSession.builder().config("spark.sql.warehouse.dir", "file:///c:/path/to/my").appName("T").master("local[*]").getOrCreate()
+    val rdd = spark.sparkContext.parallelize(0 to 100)
+//    rdd.saveAsTextFile("D://testData/test/textFile")
+//    rdd.saveAsObjectFile("D://testData/test/objectFile")
+    import spark.implicits._
+    val df = rdd.toDF()
+//    df.write.parquet("D://testData/test/parquet")
+//    df.map(_.toString()).write.text("D://testData/test/text")
+//    df.write.option("compression","gzip").csv("D://testData/test/csvWithGzip")
+//    df.write.json("D://testData/test/json")
+//    df.write.option("compression","bzip2").csv("D://testData/test/csvWithBzip2")
+//    //df.write.option("compression","lz4").csv("D://testData/test/csvWithLz4")
+//    //df.write.option("compression","snappy").csv("D://testData/test/csvWithSnappy")
+//    df.write.csv("D://testData/test/csv")
+    //df.write.saveAsTable("table")
+    spark.read.table("table").show()
   }
 }

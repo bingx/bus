@@ -75,8 +75,8 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) {
         //局部sort，对每一辆车的每天的数据进行排序，内存应该占不大
         val gps = it.toBuffer[Row].sortBy(row => row.getString(row.fieldIndex("upTime"))).map(_.mkString(","))
         val stationMap = bStation.value.groupBy(sd => sd.route + "," + sd.direct)
-        val map = new mutable.HashMap[String, Set[Int]]()
-        val upRoute = new mutable.HashSet[String]()
+        val map = new mutable.HashMap[String, Array[Int]]() //命中线路，站点集合
+        val upRoute = new mutable.HashSet[String]() //上传站点集合
 
         stationMap.foreach { route =>
           gps.foreach { row =>
@@ -96,7 +96,7 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) {
                   array = array.tail.+=(sd)
               }
               if (dis < 50.0 && (sd.stationSeqId == 1 || sd.stationSeqId == route._2.length)) {
-                var get = map.getOrElse(route._1, Set[Int]())
+                var get = map.getOrElse(route._1, Array[Int]())
                 get = get ++ Seq(0, sd.stationSeqId)
                 map.update(route._1, get)
               }
@@ -104,7 +104,7 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) {
             if (array.size > 1) {
               val pd = LocationUtil.distance(array(0).stationLon, array(0).stationLat, array(1).stationLon, array(1).stationLat)
               if (min2.sum < 1.2 * pd) {
-                var get = map.getOrElse(route._1, Set[Int]())
+                var get = map.getOrElse(route._1, Array[Int]())
                 get = get ++ Seq(array(0).stationSeqId, array(1).stationSeqId)
                 map.update(route._1, get)
               }
@@ -112,18 +112,16 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) {
           }
         }
         val rate = new ArrayBuffer[String]()
+        //站点命中率=gps命中站点数/线路总站点数
         map.foreach { m =>
           val lineSize = stationMap.getOrElse(m._1, Array()).length
           if (m._2.contains(0))
-            rate += s + "," + m._1 + ",0;" + (m._2.size.toDouble - 1) / lineSize + "," + upRoute.mkString(",")
+            rate += s + "," + m._2.mkString(";") + "," + m._1 + ",0;" + m._2.toSet.size + "," + lineSize + "," + (m._2.toSet.size.toDouble - 1) / lineSize + "," + upRoute.mkString(",")
           else
-            rate += s + "," + m._1 + "," + m._2.size.toDouble / lineSize + "," + upRoute.mkString(",")
+            rate += s + "," + m._2.mkString(";") + "," + m._1 + "," + m._2.toSet.size + "," + lineSize + "," + m._2.toSet.size.toDouble / lineSize + "," + upRoute.mkString(",")
         }
-        rate.iterator
-      }).rdd.saveAsTextFile("D:/testData/公交处/rate")
-    //站点命中率=gps命中站点数/线路总站点数
-
-
+        rate.sortBy(s => s.split(",")(s.split(",").length - upRoute.size - 1)).iterator
+      }).rdd.repartition(1).saveAsTextFile("D:/testData/公交处/rate/BCK127+")
   }
 
   /**
@@ -176,22 +174,19 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) {
             val lon = split(8).toDouble
             val lat = split(9).toDouble
             val min2 = Array(Double.MaxValue, Double.MaxValue)
-            var array = new ArrayBuffer[StationData]()
-            maybeRoute.foreach { sd =>
-              val dis = LocationUtil.distance(lon, lat, sd.stationLon, sd.stationLat)
-              if (dis < min2.max) {
-                min2(min2.indexOf(min2.max)) = dis
-                if (array.size < 2)
-                  array.+=(sd)
-                else
-                  array = array.tail.+=(sd)
+            val min2SD = new Array[StationData](2)
+            for (i <- 0 until maybeRoute.length - 1) {
+              val ld = LocationUtil.distance(lon,lat,maybeRoute(i).stationLon,maybeRoute(i).stationLat)
+              val rd = LocationUtil.distance(lon,lat,maybeRoute(i+1).stationLon,maybeRoute(i+1).stationLat)
+              if (min2(0) > ld && min2(1) > rd) {
+                min2(0) = ld
+                min2(1) = rd
+                min2SD(0) = maybeRoute(i)
+                min2SD(1) = maybeRoute(i+1)
               }
             }
-            if (array.size > 1) {
-              val pd = LocationUtil.distance(array(0).stationLon, array(0).stationLat, array(1).stationLon, array(1).stationLat)
-              if (min2.sum < 1.2 * pd) {
-                result = result + "," + route.getString(route.fieldIndex("route"))
-              }
+            if (min2.max < Double.MaxValue) {
+              result = result + "," + min2SD(0).route+","+min2SD(0).direct + "," + min2SD(0).stationSeqId + "," + min2(0) + "," + min2SD(1).stationSeqId + "," + min2(1)
             }
             result
           }
@@ -307,7 +302,7 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) {
       //      it
       //    })
       //.count()
-      .rdd.saveAsTextFile("D:/testData/公交处/toStation1")
+      .rdd.saveAsTextFile("D:/testData/公交处/toStation2")
 
     busDataCleanUtils.data
   }
