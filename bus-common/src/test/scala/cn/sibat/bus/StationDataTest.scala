@@ -120,27 +120,47 @@ object StationDataTest {
 
     //多路线筛选
     val collect = spark.read.textFile("D:/testData/公交处/BJ7547ToStation").collect()
-    val map = new mutable.HashMap[String,Set[Int]]()
-    var count = true
+    val map = new mutable.HashMap[String, Set[Int]]()
+    var count = 0
+    var start = 0
+    val firstDirect = new ArrayBuffer[String]()
+    val maxDis = new ArrayBuffer[Double]()
     collect.foreach { str =>
-      if (count){
-
-      }else{
-
-      }
       val split = str.split(",")
       val carId = split(3)
       val oldLength = 16
       val struct = 6
       val length = (split.length - oldLength) / struct
       val many = (0 until length).map(i => Trip(carId, split(oldLength + i * 6), split(oldLength + 1 + i * struct), split(oldLength + 2 + i * struct).toInt, split(oldLength + 3 + i * struct).toDouble, split(oldLength + 4 + i * struct).toInt, split(oldLength + 5 + i * struct).toDouble, 0))
-      var start = ""
-      for (i <- 0 until length) {
-        if (many(i).firstSeqIndex - 1 < 2) {
-          start = start + "," + many(i).route
+      if (count == 0) {
+        for (i <- 0 until length) {
+          if (many(i).firstSeqIndex - 1 < 2) {
+            firstDirect += many(i).direct
+          }
+          map.put(many(i).route, new HashSet[Int].+(many(i).firstSeqIndex).+(many(i).nextSeqIndex))
+          maxDis += many(i).ld
+        }
+      } else {
+        if (!firstDirect.indices.forall(i => firstDirect(i).equals(many(i).direct))) {
+          var trueI = 0
+          val cost = Array()
+          for (i <- 0 until length) {
+            maxDis(i) / 50.0
+            map.get(many(i).route).get.size / 50.0
+
+            map.update(many(i).route, new HashSet[Int].+(many(i).firstSeqIndex).+(many(i).nextSeqIndex))
+            maxDis(i) = many(i).ld
+          }
+          collect.slice(start, count)
+          start = count
+        } else {
+          for (i <- 0 until length) {
+            maxDis(i) = maxDis(i) + many(i).ld
+            map.update(many(i).route,map.getOrElse(many(i).route,Set()).+(many(i).firstSeqIndex).+(many(i).nextSeqIndex))
+          }
         }
       }
-      count = false
+      count += 1
     }
   }
 }

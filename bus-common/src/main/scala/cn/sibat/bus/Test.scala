@@ -70,12 +70,12 @@ object TestBus {
 //    }
 //    println(max2.mkString(","))
 
-    val spark = SparkSession.builder().config("spark.sql.warehouse.dir", "file:///c:/path/to/my").appName("T").master("local[*]").getOrCreate()
-    val rdd = spark.sparkContext.parallelize(0 to 100)
+//    val spark = SparkSession.builder().config("spark.sql.warehouse.dir", "file:///c:/path/to/my").appName("T").master("local[*]").getOrCreate()
+//    val rdd = spark.sparkContext.parallelize(0 to 100)
 //    rdd.saveAsTextFile("D://testData/test/textFile")
 //    rdd.saveAsObjectFile("D://testData/test/objectFile")
-    import spark.implicits._
-    val df = rdd.toDF()
+//    import spark.implicits._
+//    val df = rdd.toDF()
 //    df.write.parquet("D://testData/test/parquet")
 //    df.map(_.toString()).write.text("D://testData/test/text")
 //    df.write.option("compression","gzip").csv("D://testData/test/csvWithGzip")
@@ -85,6 +85,6 @@ object TestBus {
 //    //df.write.option("compression","snappy").csv("D://testData/test/csvWithSnappy")
 //    df.write.csv("D://testData/test/csv")
     //df.write.saveAsTable("table")
-    spark.read.table("table").show()
+//    spark.read.table("table").show()
   }
 }
