@@ -3,6 +3,8 @@ package cn.sibat.bus
 import org.apache.spark.sql.{Row, SparkSession}
 import org.apache.spark.sql.functions._
 
+import scala.collection.immutable.HashSet
+import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
 case class Trip(carId: String, route: String, direct: String, firstSeqIndex: Int, ld: Double, nextSeqIndex: Int, rd: Double, tripId: Int)
@@ -14,6 +16,7 @@ case class Trip(carId: String, route: String, direct: String, firstSeqIndex: Int
 object StationDataTest {
   def main(args: Array[String]) {
     val spark = SparkSession.builder().config("spark.sql.warehouse.dir", "file:///c:/path/to/my").appName("StationDataTest").master("local[*]").getOrCreate()
+    //spark.sparkContext.setLogLevel("ERROR")
     import spark.implicits._
     val bStation = spark.sparkContext.broadcast(spark.read.textFile("D:/testData/公交处/lineInfo.csv").map { str =>
       val Array(route, direct, stationId, stationName, stationSeqId, stationLat, stationLon) = str.split(",")
@@ -70,10 +73,12 @@ object StationDataTest {
     //.rdd.saveAsTextFile("D:/testData/公交处/confirm")
 
     //分趟验证
-    val data = spark.read.parquet("D:/testData/公交处/confirmParquet")
-    data.cache()
-    val group = data.groupBy(col("carId"), col("route"), col("direct"))
-    group.max("firstSeqIndex", "ld", "nextSeqIndex", "rd", "tripId").filter(col("max(ld)") > lit(2000.0)).show()
+    //    val data = spark.read.parquet("D:/testData/公交处/confirmParquet")
+    //    data.filter(col("route") === "B7114").rdd.repartition(1).saveAsTextFile("D:/testData/公交处/B7114ForTrip")
+    //    data.cache()
+    //    data.filter(col("carId") === lit("��BJ7547")).rdd.repartition(1).saveAsTextFile("D:/testData/公交处/BJ7547ForTrip")
+    //    val group = data.groupBy(col("carId"), col("route"), col("direct"))
+    //    group.max("firstSeqIndex", "ld", "nextSeqIndex", "rd", "tripId").filter(col("max(ld)") > lit(2000.0)).show()
     //group.min("firstSeqIndex", "ld", "nextSeqIndex", "rd", "tripId").show()
     //group.avg("firstSeqIndex", "ld", "nextSeqIndex", "rd", "tripId").show()
 
@@ -95,38 +100,47 @@ object StationDataTest {
     //roadInformation.routeConfirm(bStation)
 
     //上传线路异常检测
-    //    val colLength = udf{(route:String)=>route.length}
-    //    busDataCleanUtils.dataFormat().data.select("route").withColumn("length",colLength(col("route"))).distinct().filter(col("length") =!= 5).show()
+    //val colLength = udf{(route:String)=>route.length}
+    //busDataCleanUtils.dataFormat().data.select("route").withColumn("length",colLength(col("route"))).distinct().filter(col("length") =!= 5).show()
 
-    //    val min2 = Array(Double.MaxValue, Double.MaxValue)
-    //    var array = new ArrayBuffer[String]()
-    //    var count = 0
-    //    spark.read.option("inferSchema", true).option("header", false).csv("D:/testData/公交处/line20170228.csv").collect().foreach { row =>
-    //      val t_lon = 114.082939
-    //      val t_lat = 22.732796
-    //      val lon = row.getDouble(row.fieldIndex("_c6"))
-    //      val lat = row.getDouble(row.fieldIndex("_c5"))
-    //      val dis = LocationUtil.distance(lon, lat, t_lon, t_lat)
-    ////      if (math.abs(t_lat - lat) < 10)
-    ////        println(math.abs(t_lat - lat), math.abs(t_lon - lon))
-    //      if (min2.max > dis) {
-    //        println(lat, lon,row.getString(row.fieldIndex("_c0")))
-    //        min2(min2.indexOf(min2.max)) = dis
-    //        if (array.size < 2)
-    //          array.+=(lon+","+lat)
-    //        else
-    //          array = array.tail.+=(lon+","+lat)
+    //上下行差
+    //    spark.read.option("inferSchema", true).option("header", false).csv("D:/testData/公交处/lineInfo.csv").groupBy("_c0", "_c1").count().select("_c0", "count")
+    //      .rdd
+    //      .groupBy(r => r.getString(r.fieldIndex("_c0"))).map { t =>
+    //      val arr = t._2.toArray.map(r=> r.getLong(r.fieldIndex("count")))
+    //      var result = 0L
+    //      if (arr.length>1){
+    //        result = arr.max - arr.min
     //      }
-    //      count+=1
-    //    }
-    //    if (array.size > 1) {
-    //      val pd = LocationUtil.distance(array(0).split(",")(0).toDouble, array(0).split(",")(1).toDouble, array(1).split(",")(0).toDouble, array(1).split(",")(1).toDouble)
-    //      println(pd)
-    //      if (min2.sum < 1.2 * pd) {
-    //        println("+++++++")
-    //      }
-    //    }
-    //    println(count)
-    //    println(min2.mkString(";"))
+    //      (t._1,result)
+    //    }.filter(_._2>2).foreach(println)
+
+    //��BJ7547效果,局部down��BC0980
+    //spark.read.textFile("D:/testData/公交处/toStation4").rdd.filter(str => str.contains("��BJ7547")).repartition(1).saveAsTextFile("D:/testData/公交处/BJ7547ToStation")
+
+    //多路线筛选
+    val collect = spark.read.textFile("D:/testData/公交处/BJ7547ToStation").collect()
+    val map = new mutable.HashMap[String,Set[Int]]()
+    var count = true
+    collect.foreach { str =>
+      if (count){
+
+      }else{
+
+      }
+      val split = str.split(",")
+      val carId = split(3)
+      val oldLength = 16
+      val struct = 6
+      val length = (split.length - oldLength) / struct
+      val many = (0 until length).map(i => Trip(carId, split(oldLength + i * 6), split(oldLength + 1 + i * struct), split(oldLength + 2 + i * struct).toInt, split(oldLength + 3 + i * struct).toDouble, split(oldLength + 4 + i * struct).toInt, split(oldLength + 5 + i * struct).toDouble, 0))
+      var start = ""
+      for (i <- 0 until length) {
+        if (many(i).firstSeqIndex - 1 < 2) {
+          start = start + "," + many(i).route
+        }
+      }
+      count = false
+    }
   }
 }

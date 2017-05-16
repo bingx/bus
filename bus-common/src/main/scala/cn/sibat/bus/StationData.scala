@@ -3,6 +3,7 @@ package cn.sibat.bus
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.sql.functions._
+import org.apache.spark.storage.StorageLevel
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
@@ -148,51 +149,124 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) {
     val time2date = udf { (upTime: String) =>
       upTime.split("T")(0)
     }
+
     //未来使用备选线路id库，给df内部操作的时候使用广播进去，不然会出错
     val carIdAndRoute = busDataCleanUtils.data.select(col("carId"), time2date(col("upTime")).as("upTime"), col("route")).distinct().rdd
       .groupBy(row => row.getString(row.fieldIndex("carId")) + "," + row.getString(row.fieldIndex("upTime"))).collectAsMap()
     val bCarIdAndRoute = busDataCleanUtils.data.sparkSession.sparkContext.broadcast(carIdAndRoute)
 
     //对每辆车的时间进行排序，进行shuffleSort还是进行局部sort呢？
-    busDataCleanUtils.data.groupByKey(row => row.getString(row.fieldIndex("carId")) + "," + row.getString(row.fieldIndex("upTime")).split("T")(0))
-      .flatMapGroups((s, it) => {
+    val groupByKey = busDataCleanUtils.data.groupByKey(row => row.getString(row.fieldIndex("carId")) + "," + row.getString(row.fieldIndex("upTime")).split("T")(0))
 
-        val maybeLineId = bCarIdAndRoute.value.get(s).get
+    groupByKey.flatMapGroups((s, it) => {
 
-        //局部sort，对每一辆车的每天的数据进行排序，内存应该占不大
-        var gps = it.toBuffer[Row].sortBy(row => row.getString(row.fieldIndex("upTime"))).map(_.mkString(","))
-        val stationMap = bStation.value.groupBy(sd => sd.route + "," + sd.direct)
+      val maybeLineId = bCarIdAndRoute.value.get(s).get
 
-        maybeLineId.foreach { route =>
-          var maybeRoute = stationMap.getOrElse(route.getString(route.fieldIndex("route")) + ",up", Array())
-          if (maybeRoute.isEmpty) {
-            maybeRoute = stationMap.getOrElse(route.getString(route.fieldIndex("route")) + ",down", Array())
+      //局部sort，对每一辆车的每天的数据进行排序，内存应该占不大
+      var gps = it.toArray[Row].sortBy(row => row.getString(row.fieldIndex("upTime"))).map(_.mkString(","))
+      val stationMap = bStation.value.groupBy(sd => sd.route + "," + sd.direct)
+
+      maybeLineId.foreach { route =>
+        val maybeRouteUp = stationMap.getOrElse(route.getString(route.fieldIndex("route")) + ",up", Array())
+        val maybeRouteDown = stationMap.getOrElse(route.getString(route.fieldIndex("route")) + ",down", Array())
+        //选取数据的前两个不同位置的点
+        val firstSplit = gps.head.split(",")
+        val firstLon = firstSplit(8).toDouble
+        val firstLat = firstSplit(9).toDouble
+        var secondLon = 0.0
+        var secondLat = 0.0
+        var count = 0
+        var flag = true
+        while (flag) {
+          if (gps.length - 1 <= count) {
+            flag = false
+            secondLon = firstLon
+            secondLat = firstLat
           }
-          gps = gps.map { row =>
-            var result = row
-            val split = row.split(",")
-            val lon = split(8).toDouble
-            val lat = split(9).toDouble
-            val min2 = Array(Double.MaxValue, Double.MaxValue)
-            val min2SD = new Array[StationData](2)
-            for (i <- 0 until maybeRoute.length - 1) {
-              val ld = LocationUtil.distance(lon,lat,maybeRoute(i).stationLon,maybeRoute(i).stationLat)
-              val rd = LocationUtil.distance(lon,lat,maybeRoute(i+1).stationLon,maybeRoute(i+1).stationLat)
+          val secondSplit = gps(count).split(",")
+          secondLon = secondSplit(8).toDouble
+          secondLat = secondSplit(9).toDouble
+          if (secondLon != firstLon || secondLat != firstLat)
+            flag = false
+          count += 1
+        }
+        //确认初始化方向,false->down,true->up
+        var upOrDown = true
+        if (!maybeRouteUp.isEmpty) {
+          val Array(one, _*) = maybeRouteUp.filter(sd => sd.stationSeqId == 1)
+          val oneDis = LocationUtil.distance(firstLon, firstLat, one.stationLon, one.stationLat)
+          val twoDis = LocationUtil.distance(secondLon, secondLat, one.stationLon, one.stationLat)
+          if (oneDis <= 2000.0)
+            upOrDown = true
+          else if (oneDis > twoDis && !maybeRouteDown.isEmpty)
+            upOrDown = false
+        }
+        if (!maybeRouteDown.isEmpty) {
+          val Array(one, _*) = maybeRouteDown.filter(sd => sd.stationSeqId == 1)
+          val oneDis = LocationUtil.distance(firstLon, firstLat, one.stationLon, one.stationLat)
+          val twoDis = LocationUtil.distance(secondLon, secondLat, one.stationLon, one.stationLat)
+          if (oneDis <= 2000.0)
+            upOrDown = false
+          else if (oneDis > twoDis)
+            upOrDown = true
+        }
+        var firstSD: StationData = null
+        var firstDirect = "up"
+        gps = gps.map { row =>
+          var result = row
+          val split = row.split(",")
+          val lon = split(8).toDouble
+          val lat = split(9).toDouble
+          val min2 = Array(Double.MaxValue, Double.MaxValue)
+          val min2SD = new Array[StationData](2)
+          if (upOrDown) {
+            for (i <- 0 until maybeRouteUp.length - 1) {
+              val ld = LocationUtil.distance(lon, lat, maybeRouteUp(i).stationLon, maybeRouteUp(i).stationLat)
+              val rd = LocationUtil.distance(lon, lat, maybeRouteUp(i + 1).stationLon, maybeRouteUp(i + 1).stationLat)
               if (min2(0) > ld && min2(1) > rd) {
                 min2(0) = ld
                 min2(1) = rd
-                min2SD(0) = maybeRoute(i)
-                min2SD(1) = maybeRoute(i+1)
+                min2SD(0) = maybeRouteUp(i)
+                min2SD(1) = maybeRouteUp(i + 1)
+                if (firstSD != null && min2SD(1).stationSeqId < firstSD.stationSeqId && math.abs(min2SD(1).stationSeqId - maybeRouteUp.length) < 3 && !maybeRouteDown.isEmpty)
+                  upOrDown = false
               }
             }
-            if (min2.max < Double.MaxValue) {
-              result = result + "," + min2SD(0).route+","+min2SD(0).direct + "," + min2SD(0).stationSeqId + "," + min2(0) + "," + min2SD(1).stationSeqId + "," + min2(1)
+          } else {
+            for (i <- 0 until maybeRouteDown.length - 1) {
+              val ld = LocationUtil.distance(lon, lat, maybeRouteDown(i).stationLon, maybeRouteDown(i).stationLat)
+              val rd = LocationUtil.distance(lon, lat, maybeRouteDown(i + 1).stationLon, maybeRouteDown(i + 1).stationLat)
+              if (min2(0) > ld && min2(1) > rd) {
+                min2(0) = ld
+                min2(1) = rd
+                min2SD(0) = maybeRouteDown(i)
+                min2SD(1) = maybeRouteDown(i + 1)
+                if (firstSD != null && min2SD(1).stationSeqId < firstSD.stationSeqId && math.abs(min2SD(1).stationSeqId - maybeRouteDown.length) < 3)
+                  upOrDown = true
+              }
             }
-            result
           }
+          if (min2.max < Double.MaxValue) {
+            var resultDirect = min2SD(0).direct
+            if (firstSD != null && firstSD.stationSeqId > min2SD(1).stationSeqId && firstDirect.equals(resultDirect)) {
+              if (resultDirect.equals("up"))
+                resultDirect = resultDirect + "OrDown"
+              else if (resultDirect.equals("down"))
+                resultDirect = resultDirect + "OrUp"
+              firstDirect = resultDirect
+            } else if (firstSD != null && firstSD.stationSeqId >= min2SD(1).stationSeqId && firstDirect.contains("Or")) {
+              resultDirect = firstDirect
+            }else{
+              firstDirect = min2SD(0).direct
+            }
+            result = result + "," + min2SD(0).route + "," + resultDirect + "," + min2SD(0).stationSeqId + "," + min2(0) + "," + min2SD(1).stationSeqId + "," + min2(1)
+          }
+          firstSD = min2SD(1)
+          result
         }
-        gps.iterator
-      })
+      }
+      gps.iterator
+    })
       //          .foreach(row => {
       //          val stationInfo = bStation.value
       //          val stationInfoMap = stationInfo.groupBy(sd => sd.route + "," + sd.direct)
@@ -302,7 +376,7 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) {
       //      it
       //    })
       //.count()
-      .rdd.saveAsTextFile("D:/testData/公交处/toStation2")
+      .rdd.saveAsTextFile("D:/testData/公交处/toStation5")
 
     busDataCleanUtils.data
   }
