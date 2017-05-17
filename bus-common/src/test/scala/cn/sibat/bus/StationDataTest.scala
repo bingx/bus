@@ -18,10 +18,15 @@ object StationDataTest {
     val spark = SparkSession.builder().config("spark.sql.warehouse.dir", "file:///c:/path/to/my").appName("StationDataTest").master("local[*]").getOrCreate()
     //spark.sparkContext.setLogLevel("ERROR")
     import spark.implicits._
-    val bStation = spark.sparkContext.broadcast(spark.read.textFile("D:/testData/公交处/lineInfo.csv").map { str =>
+    //    val bStation = spark.sparkContext.broadcast(spark.read.textFile("D:/testData/公交处/lineInfo.csv").map { str =>
+    //      val Array(route, direct, stationId, stationName, stationSeqId, stationLat, stationLon) = str.split(",")
+    //      new StationData(route, direct, stationId, stationName, stationSeqId.toInt, stationLon.toDouble, stationLat.toDouble)
+    //    }.collect())
+
+    val mapStation = spark.read.textFile("D:/testData/公交处/lineInfo.csv").map { str =>
       val Array(route, direct, stationId, stationName, stationSeqId, stationLat, stationLon) = str.split(",")
-      new StationData(route, direct, stationId, stationName, stationSeqId.toInt, stationLon.toDouble, stationLat.toDouble)
-    }.collect())
+      StationData(route, direct, stationId, stationName, stationSeqId.toInt, stationLon.toDouble, stationLat.toDouble)
+    }.collect().groupBy(sd => sd.route + "," + sd.direct)
 
     //查看某辆车
     //    val filter_1 = udf{(carId:String)=>
@@ -120,14 +125,15 @@ object StationDataTest {
 
     //多路线筛选
     val collect = spark.read.textFile("D:/testData/公交处/BJ7547ToStation").collect()
-    val map = new mutable.HashMap[String, Set[Int]]()
     var count = 0
     var start = 0
     val firstDirect = new ArrayBuffer[String]()
-    val maxDis = new ArrayBuffer[Double]()
+    val lonLat = new ArrayBuffer[String]()
+    var resultArr = new ArrayBuffer[String]()
     collect.foreach { str =>
       val split = str.split(",")
       val carId = split(3)
+      lonLat += split(8) + "," + split(9)
       val oldLength = 16
       val struct = 6
       val length = (split.length - oldLength) / struct
@@ -135,32 +141,28 @@ object StationDataTest {
       if (count == 0) {
         for (i <- 0 until length) {
           if (many(i).firstSeqIndex - 1 < 2) {
-            firstDirect += many(i).direct
-          }
-          map.put(many(i).route, new HashSet[Int].+(many(i).firstSeqIndex).+(many(i).nextSeqIndex))
-          maxDis += many(i).ld
-        }
-      } else {
-        if (!firstDirect.indices.forall(i => firstDirect(i).equals(many(i).direct))) {
-          var trueI = 0
-          val cost = Array()
-          for (i <- 0 until length) {
-            maxDis(i) / 50.0
-            map.get(many(i).route).get.size / 50.0
-
-            map.update(many(i).route, new HashSet[Int].+(many(i).firstSeqIndex).+(many(i).nextSeqIndex))
-            maxDis(i) = many(i).ld
-          }
-          collect.slice(start, count)
-          start = count
-        } else {
-          for (i <- 0 until length) {
-            maxDis(i) = maxDis(i) + many(i).ld
-            map.update(many(i).route,map.getOrElse(many(i).route,Set()).+(many(i).firstSeqIndex).+(many(i).nextSeqIndex))
+            firstDirect += many(i).direct + "," + i
           }
         }
+      } else if (!firstDirect.indices.forall(i => firstDirect(i).split(",")(0).equals(many(firstDirect(i).split(",")(1).toInt).direct))) {
+        var trueI = 0
+        val gpsPoint = FrechetUtils.lonLat2Point(lonLat.toArray)
+        for (i <- 0 until length) {
+          val line = mapStation.getOrElse(many(i).route + "," + many(i).direct, Array()).map(sd=>sd.stationLon+","+sd.stationLat)
+          val linePoint = FrechetUtils.lonLat2Point(line)
+          FrechetUtils.compareGesture(linePoint,gpsPoint)
+        }
+        resultArr ++= collect.slice(start, count).map { str =>
+          val split = str.split(",")
+          val f = (0 until 16).map(split(_)).mkString(",")
+          val s = (0 until 6).map(i => split(16 + i + trueI * 6)).mkString(",")
+          f + "," + s
+        }
+        start = count
       }
       count += 1
     }
+
+    spark.sparkContext.parallelize(resultArr, 1).saveAsTextFile("D:/testData/公交处/BJ7547ToRight")
   }
 }
