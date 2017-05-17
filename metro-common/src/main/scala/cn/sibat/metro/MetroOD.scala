@@ -17,10 +17,10 @@ class MetroOD(data: RDD[String]) {
     */
   def calMetroOD: RDD[String] = {
     //生成乘客OD记录
-    val dataRDD = data.map(x => x.split(",")).map(x => Metro_SZT(x(0), x(1), x(2), x(3), x(4), x(5), x(6), x(7)))
+    val dataRDD = data.map(x => x.split(",")).map(x => MetroSZT(x(0), x(1), x(2), x(3), x(4), x(5), x(6), x(7)))
     val pairs = dataRDD.map(records => (records.cardCode, records))
-    val ODs = pairs.groupByKey.mapValues(records => {
-      val sortedArr = records //对每一个组RDD[Iterator]转换Array引用类型，然后将数组按照打卡时间排序
+    val ODs = pairs.groupByKey.flatMap(records => {
+      val sortedArr = records._2 //对每一个组RDD[Iterator]转换Array引用类型，然后将数组按照打卡时间排序
         .toArray
         .sortBy(_.cardTime)
 
@@ -45,7 +45,7 @@ class MetroOD(data: RDD[String]) {
       generateOD(stringRecord)
     }
     )
-    ODs.values.flatMap(lines => lines).filter(line => line(3) == "21" && line(10) == "22")
+    ODs.map(line => line.split(",")).filter(line => line(3) == "21" && line(11) == "22").map(arr => arr.mkString(","))
   }
 }
 

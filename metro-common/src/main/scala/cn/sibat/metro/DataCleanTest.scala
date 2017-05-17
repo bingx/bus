@@ -17,16 +17,15 @@ object DataCleanTest {
       .getOrCreate()
 
     //读取原始数据，格式化
-    val ds = spark.read.textFile("E:\\trafficDataAnalysis\\testData\\")
-    val df_SZT = DataFormatUtils(ds).trans_SZT
-    DataCleanUtils(df_SZT).addDate.toDF.select("cardTime", "newDate")
-//    val ds_station = spark.read.textFile("E:\\trafficDataAnalysis\\subway_station")
-//    val df_metro = DataFormatUtils.apply.trans_metro_SZT(ds)
-//    val df_station = DataFormatUtils.apply.trans_metro_station(ds_station)
-//
-//    执行数据恢复
-//    val df_result = new DataCleanUtils(df).recoveryData(df_station).toDF
+    val ds = spark.read.textFile("E:\\trafficDataAnalysis\\testData\\*")
+    val ds_station = spark.read.textFile("E:\\trafficDataAnalysis\\subway_station")
+    val df_metro = DataFormatUtils(ds).transMetroSZT
+    val df_station = DataFormatUtils(ds_station).transMetroStation
 
+    //执行时间重新划分和数据恢复得到最终的清洗数据
+    val df_clean = new DataCleanUtils(df_metro).addDate().recoveryData(df_station).toDF.filter("date = \"2017-01-01\"")
+    //println(df_clean.count())
+    df_clean.rdd.map(x => x.mkString(",")).repartition(1).saveAsTextFile("E:\\trafficDataAnalysis\\cleanData")
 //    //测试SZT打卡时间分布
 //    val colHour = udf {(cardTime: String) => cardTime.slice(11, 13)}
 //    val df_SZT = DataFormatUtils.apply.trans_SZT(ds)
@@ -38,7 +37,7 @@ object DataCleanTest {
   }
 }
 //20170101数据计数（以供参考）
-//4519343 result_subway
+//4519343 result_subway clean_subway 4462810
 //698447 to_recovery
 //698447 missing
 //4519343 subway
