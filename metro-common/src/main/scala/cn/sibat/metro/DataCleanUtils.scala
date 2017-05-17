@@ -53,7 +53,7 @@ class DataCleanUtils(val data: DataFrame) {
     var recoveryData = tmpData.join(dataStation, Seq("siteId"))
     recoveryData = recoveryData.withColumn("siteName", when(col("siteName").equalTo("siteNameStatic"), col("siteName")).otherwise(col("siteNameStatic")))
       .withColumn("routeName", when(col("routeName").equalTo(col("routeNameStatic")), col("routeName")).otherwise(col("routeNameStatic")))
-      .select("recordCode", "cardCode", "terminalCode", "transType", "cardTime", "routeName", "siteName", "GateMark", "date")
+      .select("recordCode", "cardCode", "terminalCode", "transType", "cardTime", "routeName", "siteName", "GateMark")
     newUtils(recoveryData)
   }
 }

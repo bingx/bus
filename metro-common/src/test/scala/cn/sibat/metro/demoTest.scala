@@ -5,7 +5,9 @@ import org.apache.spark.sql.SparkSession
 
 import scala.collection.mutable.ArrayBuffer
 
-case class Record(siteId: String, recordCode: String, cardTime: String, transType: String, cardCode: Int, routeName: String, siteName: String)
+case class Record(siteId: String, recordCode: String, cardTime: String, transType: String, cardCode: String, routeName: String, siteName: String)
+case class OD_Record(siteId: String, recordCode: String, cardTime: String, transType: String, cardCode: String, routeName: String, siteName: String,
+              outSiteId: String, outRecordCode: String, outCardTime: String, OutTransType: String, outCardCode: String, outRouteName: String, outSiteName: String)
 /**
   * Created by wing1995 on 2017/5/8.
   */
@@ -56,14 +58,14 @@ object demoTest {
       .drop("dateStamp", "oldData", "beginTime", "endTime")
 
     //生成乘客OD记录
-    val dataRDD = result.rdd.map(x => Record(x(0).toString, x(1).toString, x(2).toString, x(3).toString, x(4).toString.toInt, x(5).toString, x(6).toString))
+    val dataRDD = result.rdd.map(x => Record(x(0).toString, x(1).toString, x(2).toString, x(3).toString, x(4).toString, x(5).toString, x(6).toString))
     val ODs = dataRDD.groupBy(records => records.cardCode).flatMap(records => {
       val sortedArr = records._2 //对每一个组RDD[Iterator]转换Array引用类型，然后将数组按照打卡时间排序
         .toArray
         .sortBy(_.cardTime)
 
       //将数组里面的每一条单独的记录连接成字符串
-      val stringArr = sortedArr.map(record => record.siteId + ',' + record.recordCode + ',' + record.cardTime + ',' + record.cardCode + ',' + record.transType +',' +record.routeName + ',' + record.siteName)
+      val stringArr = sortedArr.map(record => record.siteId + ',' + record.recordCode + ',' + record.cardTime + ',' +  record.transType +',' + record.cardCode + ',' +record.routeName + ',' + record.siteName)
       def generateOD(arr: Array[String]): Array[String] = {
         val newRecords = new ArrayBuffer[String]()
         for (i <- 1 until arr.length) {
@@ -76,6 +78,13 @@ object demoTest {
       generateOD(stringArr)
     }
     )
-    ODs.map(x => x.split(",")).filter(line => line(4) == "21" && line(11) == "22").map(x => x.mkString(",")).foreach(println)
+    val ODs_new = ODs.map(x => x.split(",")).filter(line => line(3) == "21" && line(10) == "22")
+    val ODs_df = ODs_new.map(line => OD_Record(line(0), line(1), line(2), line(3), line(4), line(5), line(6), line(7), line(8), line(9), line(10), line(11), line(12), line(13))).toDF()
+    //val ODs_calTimeDiff = ODs_df.withColumn("timeDiff",(unix_timestamp($"outCardTime", "yyyy-MM-dd HH:mm:ss") - unix_timestamp($"cardTime", "yyyy-MM-dd HH:mm:ss")) / 3600) //将时间差转换为小时
+    val timeUtils = new TimeUtils
+    val timeDiffUDF = udf((startTime: String, endTime: String) => timeUtils.calTimeDiff(startTime, endTime))
+    val ODs_calTimeDiff = ODs_df.withColumn("timeDiff", timeDiffUDF(col("cardTime"), col("outCardTime"))) //将时间差转换为小时
+    ODs_calTimeDiff.show()
+    //ODs_calTimeDiff.filter("timeDiff < 3").show()
   }
 }

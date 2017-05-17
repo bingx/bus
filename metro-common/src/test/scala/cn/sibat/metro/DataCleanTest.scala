@@ -1,7 +1,6 @@
 package cn.sibat.metro
 
 import org.apache.spark.sql.SparkSession
-import org.apache.spark.sql.functions.{col, _}
 
 /**
   * 测试数据输出情况
