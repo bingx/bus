@@ -86,5 +86,7 @@ object TestBus {
 //    df.write.csv("D://testData/test/csv")
     //df.write.saveAsTable("table")
 //    spark.read.table("table").show()
+    val t = "upOrDown"
+    println(t.split("Or").mkString(","))
   }
 }

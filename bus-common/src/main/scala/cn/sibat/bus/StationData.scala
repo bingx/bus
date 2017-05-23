@@ -54,13 +54,15 @@ case class BusCardData(rId: String, lId: String, term: String, tradeType: String
 case class BusArrivalData(raw: String, carId: String, arrivalTime: String, leaveTime: String, nextStation: String
                           , firstStation: String, arrivalStation: String, stationSeqId: Long, buses: String)
 
+case class Trip(carId: String, route: String, direct: String, firstSeqIndex: Int, ld: Double, nextSeqIndex: Int, rd: Double, tripId: Int)
+
 class RoadInformation(busDataCleanUtils: BusDataCleanUtils) {
 
   import busDataCleanUtils.data.sparkSession.implicits._
 
   def joinInfo(): Unit = {
     //shp文件，进行道路匹配
-    busDataCleanUtils.data.sparkSession.read.textFile("")
+    busDataCleanUtils.data.sparkSession.read.textFile("").as[TestBus]
 
   }
 
@@ -256,13 +258,60 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) {
               firstDirect = resultDirect
             } else if (firstSD != null && firstSD.stationSeqId >= min2SD(1).stationSeqId && firstDirect.contains("Or")) {
               resultDirect = firstDirect
-            }else{
+            } else {
               firstDirect = min2SD(0).direct
             }
             result = result + "," + min2SD(0).route + "," + resultDirect + "," + min2SD(0).stationSeqId + "," + min2(0) + "," + min2SD(1).stationSeqId + "," + min2(1)
           }
           firstSD = min2SD(1)
           result
+        }
+      }
+      //多线路筛选
+      if (maybeLineId.size > 1) {
+        var count = 0
+        var start = 0
+        val firstDirect = new ArrayBuffer[String]()
+        val lonLat = new ArrayBuffer[String]()
+        var resultArr = new ArrayBuffer[String]()
+        gps.foreach { str =>
+          val split = str.split(",")
+          val carId = split(3)
+          val oldLength = 16
+          val struct = 6
+          val length = (split.length - oldLength) / struct
+          val many = (0 until length).map(i => Trip(carId, split(oldLength + i * 6), split(oldLength + 1 + i * struct), split(oldLength + 2 + i * struct).toInt, split(oldLength + 3 + i * struct).toDouble, split(oldLength + 4 + i * struct).toInt, split(oldLength + 5 + i * struct).toDouble, 0))
+          if (count == 0) {
+            for (i <- 0 until length) {
+              firstDirect += many(i).direct + "," + i
+            }
+          } else if (!firstDirect.indices.forall(i => firstDirect(i).split(",")(0).equals(many(firstDirect(i).split(",")(1).toInt).direct))) {
+            var trueI = 0
+            val gpsPoint = FrechetUtils.lonLat2Point(lonLat.distinct.toArray)
+            var minCost = Double.MaxValue
+            val middle = firstDirect.toArray
+            firstDirect.clear()
+            for (i <- 0 until length) {
+              val line = stationMap.getOrElse(many(i).route + "," + middle(i).split(",")(0), Array()).map(sd => sd.stationLon + "," + sd.stationLat)
+              val linePoint = FrechetUtils.lonLat2Point(line)
+              val frechet = FrechetUtils.compareGesture(linePoint, gpsPoint)
+              if (frechet < minCost) {
+                minCost = frechet
+                trueI = i
+              }
+              firstDirect += many(i).direct + "," + i
+            }
+            resultArr ++= gps.slice(start, count).map { str =>
+              val split = str.split(",")
+              val f = (0 until 16).map(split(_)).mkString(",")
+              val s = (0 until 6).map(i => split(16 + i + trueI * 6)).mkString(",")
+              f + "," + s
+            }
+            lonLat.clear()
+            start = count
+          }
+          lonLat += split(8) + "," + split(9)
+          count += 1
         }
       }
       gps.iterator

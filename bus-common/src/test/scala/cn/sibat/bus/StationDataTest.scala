@@ -7,7 +7,7 @@ import scala.collection.immutable.HashSet
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
-case class Trip(carId: String, route: String, direct: String, firstSeqIndex: Int, ld: Double, nextSeqIndex: Int, rd: Double, tripId: Int)
+case class TripTest(carId: String, route: String, direct: String, firstSeqIndex: Int, ld: Double, nextSeqIndex: Int, rd: Double, tripId: Int)
 
 /**
   * 公交到站测试类
@@ -121,48 +121,99 @@ object StationDataTest {
     //    }.filter(_._2>2).foreach(println)
 
     //��BJ7547效果,局部down��BC0980
-    //spark.read.textFile("D:/testData/公交处/toStation4").rdd.filter(str => str.contains("��BJ7547")).repartition(1).saveAsTextFile("D:/testData/公交处/BJ7547ToStation")
+    //spark.read.textFile("D:/testData/公交处/toStation5").rdd.filter(str => str.contains("��B90036")).repartition(1).saveAsTextFile("D:/testData/公交处/B90036ToStation")
 
     //多路线筛选
+//    val collect = spark.read.textFile("D:/testData/公交处/BJ7547ToStation").collect()
+//    var count = 0
+//    var start = 0
+//    val firstDirect = new ArrayBuffer[String]()
+//    val lonLat = new ArrayBuffer[String]()
+//    var resultArr = new ArrayBuffer[String]()
+//    collect.foreach { str =>
+//      val split = str.split(",")
+//      val carId = split(3)
+//      val oldLength = 16
+//      val struct = 6
+//      val length = (split.length - oldLength) / struct
+//      val many = (0 until length).map(i => TripTest(carId, split(oldLength + i * 6), split(oldLength + 1 + i * struct), split(oldLength + 2 + i * struct).toInt, split(oldLength + 3 + i * struct).toDouble, split(oldLength + 4 + i * struct).toInt, split(oldLength + 5 + i * struct).toDouble, 0))
+//      if (count == 0) {
+//        for (i <- 0 until length) {
+//            firstDirect += many(i).direct + "," + i
+//        }
+//      } else if (!firstDirect.indices.forall(i => firstDirect(i).split(",")(0).equals(many(firstDirect(i).split(",")(1).toInt).direct))) {
+//        var trueI = 0
+//        val gpsPoint = FrechetUtils.lonLat2Point(lonLat.distinct.toArray)
+//        var minCost = Double.MaxValue
+//        val middle = firstDirect.toArray
+//        firstDirect.clear()
+//        for (i <- 0 until length) {
+//          val line = mapStation.getOrElse(many(i).route + "," + middle(i).split(",")(0), Array()).map(sd => sd.stationLon + "," + sd.stationLat)
+//          val linePoint = FrechetUtils.lonLat2Point(line)
+//          val frechet = FrechetUtils.compareGesture(linePoint, gpsPoint)
+//          println(frechet,many(i).route + "," + middle(i).split(",")(0))
+//          if (frechet < minCost) {
+//            minCost = frechet
+//            trueI = i
+//          }
+//          firstDirect += many(i).direct + "," + i
+//        }
+//        resultArr ++= collect.slice(start, count).map { str =>
+//          val split = str.split(",")
+//          val f = (0 until 16).map(split(_)).mkString(",")
+//          val s = (0 until 6).map(i => split(16 + i + trueI * 6)).mkString(",")
+//          f + "," + s
+//        }
+//        lonLat.clear()
+//        println(start)
+//        start = count
+//      }
+//      lonLat += split(8) + "," + split(9)
+//      count += 1
+//    }
+//    spark.sparkContext.parallelize(resultArr, 1).saveAsTextFile("D:/testData/公交处/BJ7547ToRight")
+
     val collect = spark.read.textFile("D:/testData/公交处/BJ7547ToStation").collect()
+    //中间方向异常点纠正
+    val firstTrip = new ArrayBuffer[TripTest]()
+    var updateStart = 0
+    var updateEnd = 0
     var count = 0
-    var start = 0
-    val firstDirect = new ArrayBuffer[String]()
-    val lonLat = new ArrayBuffer[String]()
-    var resultArr = new ArrayBuffer[String]()
     collect.foreach { str =>
       val split = str.split(",")
-      val carId = split(3)
-      lonLat += split(8) + "," + split(9)
-      val oldLength = 16
-      val struct = 6
-      val length = (split.length - oldLength) / struct
-      val many = (0 until length).map(i => Trip(carId, split(oldLength + i * 6), split(oldLength + 1 + i * struct), split(oldLength + 2 + i * struct).toInt, split(oldLength + 3 + i * struct).toDouble, split(oldLength + 4 + i * struct).toInt, split(oldLength + 5 + i * struct).toDouble, 0))
-      if (count == 0) {
-        for (i <- 0 until length) {
-          if (many(i).firstSeqIndex - 1 < 2) {
-            firstDirect += many(i).direct + "," + i
+      val many = toArrTrip(split)
+      var temp = true
+      if (many.forall(_.direct.contains("Or"))){
+        if (temp) {
+          updateStart = count
+          temp = false
+        }
+      }else{
+        if (!temp)
+          updateEnd = count-1
+        collect.slice(updateStart,updateEnd).map { s=>
+          val split = s.split(",")
+          val trip = toArrTrip(split)
+          for (i <- many.indices) {
+            if (firstTrip(i).firstSeqIndex <= many(i).firstSeqIndex) {
+              trip.update(i,trip(i).copy(direct = trip(i).direct.split("Or")(0)))
+            }else if (firstTrip(i).firstSeqIndex > many(i).firstSeqIndex){
+              trip.update(i,trip(i).copy(direct = trip(i).direct.split("Or")(1)))
+            }
           }
+          ""
         }
-      } else if (!firstDirect.indices.forall(i => firstDirect(i).split(",")(0).equals(many(firstDirect(i).split(",")(1).toInt).direct))) {
-        var trueI = 0
-        val gpsPoint = FrechetUtils.lonLat2Point(lonLat.toArray)
-        for (i <- 0 until length) {
-          val line = mapStation.getOrElse(many(i).route + "," + many(i).direct, Array()).map(sd=>sd.stationLon+","+sd.stationLat)
-          val linePoint = FrechetUtils.lonLat2Point(line)
-          FrechetUtils.compareGesture(linePoint,gpsPoint)
-        }
-        resultArr ++= collect.slice(start, count).map { str =>
-          val split = str.split(",")
-          val f = (0 until 16).map(split(_)).mkString(",")
-          val s = (0 until 6).map(i => split(16 + i + trueI * 6)).mkString(",")
-          f + "," + s
-        }
-        start = count
+        firstTrip ++= many
       }
       count += 1
     }
+  }
 
-    spark.sparkContext.parallelize(resultArr, 1).saveAsTextFile("D:/testData/公交处/BJ7547ToRight")
+  def toArrTrip(split:Array[String]): Array[TripTest] ={
+    val carId = split(3)
+    val oldLength = 16
+    val struct = 6
+    val length = (split.length - oldLength) / struct
+    (0 until length).map(i => TripTest(carId, split(oldLength + i * 6), split(oldLength + 1 + i * struct), split(oldLength + 2 + i * struct).toInt, split(oldLength + 3 + i * struct).toDouble, split(oldLength + 4 + i * struct).toInt, split(oldLength + 5 + i * struct).toDouble, 0)).toArray
   }
 }
