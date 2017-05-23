@@ -3,7 +3,7 @@ package cn.sibat.taxi
 
 import java.text.SimpleDateFormat
 
-//import cn.sibat.bus.LocationUtil
+import cn.sibat.bus.DataFrameUtils
 import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.functions._
 
@@ -13,27 +13,21 @@ import scala.collection.mutable.ArrayBuffer
   * 应用不同场景，进行条件组合
   * Created by Lhh on 2017/5/3.
   */
+
 class TaxiDataCleanUtils(val data:DataFrame) extends Serializable{
   import this.data.sparkSession.implicits._
 
-
-  object TaxiDataCleanUtils {
-    def apply(data:DataFrame): TaxiDataCleanUtils = new TaxiDataCleanUtils(data)
-  }
 
   /**
     * 构造对象
     * 也可以利用伴生对象apply方法BusDataCleanUtils(df)
     * @param df
-    * @return
+    * @return TaxiDataCleanUtils
     */
-  private def newUtils(df: DataFrame): TaxiDataCleanUtils = new TaxiDataCleanUtils(df)
-
-  case class TaxiData(carId:String,lon:Double,lat:Double,upTime:String,SBH:String,speed:Double,direction:Double,
-                      locationStatus:Double,X:Double,SMICarid:Double,carStatus:Double,carColor:String)
+  private def newUtils(df: DataFrame): TaxiDataCleanUtils = TaxiDataCleanUtils(df)
 
   /**
-    * 对公交车数据进行格式化，并转化成对应数据格式
+    * 对出租车数据进行格式化，并转化成对应数据格式
     * 结果列名"carId","lon","lat","upTime","SBH","speed","direction","locationStatus",
     * "X","SMICarid","carStatus","carColor"
     *
@@ -42,17 +36,17 @@ class TaxiDataCleanUtils(val data:DataFrame) extends Serializable{
     */
   def dataFormat():TaxiDataCleanUtils = {
     var colType = Array("String")
-    colType = colType ++ ("Double," * 2).split(",") ++ ("String," * 2).split(",") ++ ("Double," * 6).split(",") ++ "String".split(",")
-    val cols = Array("carId","lon","lat","upTime","SBH","speed","direction","locationStatus",
+    colType = colType ++ ("Double," * 2).split(",") ++ ("String," * 2).split(",") ++ ("String," * 7).split(",")
+    val cols = Array("carId","lon","lat","time","SBH","speed","direction","locationStatus",
        "X","SMICarid","carStatus","carColor")
     newUtils(DataFrameUtils.apply.col2moreCol(data.toDF(),"value",colType,cols: _*))
   }
 
   /**
-    * 过滤掉经纬度0.0，0.0的记录
+    * 过滤掉关键字段为空的记录
     * @return
     */
-  def zeroPoin(): TaxiDataCleanUtils = {
+  def nullRecord(): TaxiDataCleanUtils = {
     newUtils(this.data.filter(col("lon") =!= 0.0 && col("lat") =!= 0.0))
   }
   /**
@@ -61,7 +55,7 @@ class TaxiDataCleanUtils(val data:DataFrame) extends Serializable{
     * @return self
     */
   def filterStatus(): TaxiDataCleanUtils = {
-    newUtils(this.data.filter(col("status") === lit("0")))
+    newUtils(this.data.filter(col("locationStatus") === lit("0")))
   }
   /**
     * 过滤经纬度异常数据，异常条件为
@@ -80,7 +74,7 @@ class TaxiDataCleanUtils(val data:DataFrame) extends Serializable{
     * @return
     */
   def allZeroPoint(): TaxiDataCleanUtils = {
-    val result = this.data.groupByKey(row => row.getString(row.fieldIndex("upTime")).split("T")(0) + "," + row.getString(row.fieldIndex("carId")))
+    val result = this.data.groupByKey(row => row.getString(row.fieldIndex("time")).split("T")(0) + "," + row.getString(row.fieldIndex("carId")))
       .flatMapGroups((s, it) => {
         var flag = true
         val result = new ArrayBuffer[TaxiData]()
@@ -90,11 +84,11 @@ class TaxiDataCleanUtils(val data:DataFrame) extends Serializable{
             flag = false
           }
           val bd = TaxiData(row.getString(row.fieldIndex("carId")), row.getDouble(row.fieldIndex("lon"))
-            , row.getDouble(row.fieldIndex("lat")), row.getString(row.fieldIndex("upTime"))
-            , row.getString(row.fieldIndex("SBH")), row.getDouble(row.fieldIndex("speed"))
-            , row.getDouble(row.fieldIndex("direction")), row.getDouble(row.fieldIndex("locationStatus"))
-            , row.getDouble(row.fieldIndex("X")), row.getDouble(row.fieldIndex("SMICarid"))
-            , row.getDouble(row.fieldIndex("carStatus")), row.getString(row.fieldIndex("carColor")))
+            , row.getDouble(row.fieldIndex("lat")), row.getString(row.fieldIndex("time"))
+            , row.getString(row.fieldIndex("SBH")), row.getString(row.fieldIndex("speed"))
+            , row.getString(row.fieldIndex("direction")), row.getString(row.fieldIndex("locationStatus"))
+            , row.getString(row.fieldIndex("X")), row.getString(row.fieldIndex("SMICarid"))
+            , row.getString(row.fieldIndex("carStatus")), row.getString(row.fieldIndex("carColor")))
           result += bd
         }
         if (!flag) {
@@ -107,12 +101,40 @@ class TaxiDataCleanUtils(val data:DataFrame) extends Serializable{
   }
 
   /**
+    * 遍历所有记录的经纬度，有些车辆的值存在缩小10倍的情况，选择经度小于20，纬度小于6的记录进行放大10倍的处理，
+    * 还原可能的记录，再使用@link{ cn.sibat.bus.TaxiDataCleanUtils.zeroPoint() }操作
+    * @return
+    */
+  def restorePoint():TaxiDataCleanUtils = {
+    val result = this.data.groupByKey(row => row.getString(row.fieldIndex("time")).split("T")(0) + "," + row.getString(row.fieldIndex("carId")))
+      .flatMapGroups((s,it) =>{
+        val result = new ArrayBuffer[TaxiData]()
+        it.foreach { row =>
+          var lon = row.getDouble(row.fieldIndex("lon"))
+          var lat = row.getDouble(row.fieldIndex("lat"))
+          if(lon < 20 && lat <6){
+            lon *= 10
+            lat *= 10
+          }
+          val bd = TaxiData(row.getString(row.fieldIndex("carId")), lon
+            , lat, row.getString(row.fieldIndex("time"))
+            , row.getString(row.fieldIndex("SBH")), row.getString(row.fieldIndex("speed"))
+            , row.getString(row.fieldIndex("direction")), row.getString(row.fieldIndex("locationStatus"))
+            , row.getString(row.fieldIndex("X")), row.getString(row.fieldIndex("SMICarid"))
+            , row.getString(row.fieldIndex("carStatus")), row.getString(row.fieldIndex("carColor")))
+          result += bd
+        }
+        result
+      }).toDF()
+    newUtils(result)
+  }
+  /**
     * 两个时间点之间的差值
     * @param firstTime
     * @param lastTime
-    * @return
+    * @return 时间差
     */
-  def dealTime(firstTime: String, lastTime: String): Long = {
+  def dealTime(firstTime: String, lastTime: String): Double = {
     var result = -1L
     try {
       val sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
@@ -131,17 +153,16 @@ class TaxiDataCleanUtils(val data:DataFrame) extends Serializable{
     * @param lat2 纬度2
     * @return 距离（m）
     */
-  def distance(lon1:Double,lat1:Double,lon2:Double,lat2:Double) = {
+  def distance(lon1:Double,lat1:Double,lon2:Double,lat2:Double) : Double = {
     val earth_radius = 6367000
-    if(lat1 != 0.0 && lon1 != 0.0 && lat2 != 0.0 && lon2 != 0.0){
-      val hSinY = Math.sin((lat1-lat2)*Math.PI/180*0.5)
-      val hSinX = Math.sin((lon1-lon2)*Math.PI/180*0.5)
-      val s = hSinY * hSinY + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * hSinX * hSinY
-      2 * Math.atan2(Math.sqrt(s),Math.sqrt(1 - s)) * earth_radius
-    }
+    val hSinY = Math.sin((lat1-lat2)*Math.PI/180*0.5)
+    val hSinX = Math.sin((lon1-lon2)*Math.PI/180*0.5)
+    val s = hSinY * hSinY + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * hSinX * hSinY
+    2 * Math.atan2(Math.sqrt(s),Math.sqrt(1 - s)) * earth_radius
+
   }
   /**
-    * 添加时间间隔与位移
+    * 添加时间间隔与位移、速度
     * 位移指的是两点间的球面距离，并非路线距离
     * 比如车拐弯了，
     * C++++++B
@@ -151,31 +172,32 @@ class TaxiDataCleanUtils(val data:DataFrame) extends Serializable{
     * A
     * 那么位移就是AB之间的距离，并非AC+CB
     * 时间字段异常的话interval=-1,第一条记录为起点0，0.0
-    * 结果在元数据的基础上添加两列interval,movement
+    * 结果在元数据的基础上添加两列interval,movement,realSpeed
     *
-    * @return df(BusData,interval,movement)
+    * @return df(BusData,standTime,realSpeed)
     */
-  def intervalAndMovement(): TaxiDataCleanUtils = {
-    val target = this.data.groupByKey(row => row.getString(row.fieldIndex("upTime")).split("T")(0) + row.getString(row.fieldIndex("carId")))
+  def intervalAndRealSpeed(): TaxiDataCleanUtils = {
+    val target = this.data.groupByKey(row => row.getString(row.fieldIndex("time")).split("T")(0) + row.getString(row.fieldIndex("carId")))
       .flatMapGroups((s, it) => {
         val result = new ArrayBuffer[String]()
         var firstTime = ""
         var firstLon = 0.0
         var firstLat = 0.0
-        it.toArray.sortBy(row => row.getString(row.fieldIndex("upTime"))).foreach(f = row => {
+        it.toArray.sortBy(row => row.getString(row.fieldIndex("time"))).foreach(f = row => {
           if (result.isEmpty) {
-            firstTime = row.getString(row.fieldIndex("upTime"))
+            firstTime = row.getString(row.fieldIndex("time"))
             firstLon = row.getDouble(row.fieldIndex("lon"))
             firstLat = row.getDouble(row.fieldIndex("lat"))
+            //mkString类似于split功能
             result.+=(row.mkString(",") + ",0,0.0")
           } else {
-            val lastTime = row.getString(row.fieldIndex("upTime"))
+            val lastTime = row.getString(row.fieldIndex("time"))
             val lastLon = row.getDouble(row.fieldIndex("lon"))
             val lastLat = row.getDouble(row.fieldIndex("lat"))
             val standTime = dealTime(firstTime, lastTime)
             val movement = distance(firstLon, firstLat, lastLon, lastLat)
-//            val movement = LocationUtil.distance(firstLon, firstLat, lastLon, lastLat)
-            result.+=(row.mkString(",") + "," + standTime + "," + movement)
+            val realSpeed = movement / standTime
+            result .+=(row.mkString(",") + "," + standTime + "," + realSpeed )
             firstTime = lastTime
             firstLon = lastLon
             firstLat = lastLat
@@ -184,12 +206,58 @@ class TaxiDataCleanUtils(val data:DataFrame) extends Serializable{
         result
       }).map(line => {
       val split = line.split(",")
-      Tuple14.apply(split(0), split(1).toDouble, split(2).toDouble, split(3), split(4), split(5).toDouble
-        , split(6).toDouble, split(7).toDouble, split(8).toDouble, split(9).toDouble, split(10).toDouble, split(11)
-        ,split(12).toDouble,split(13).toDouble)
-    }).toDF("carId","lon","lat","upTime","SBH","speed","direction","locationStatus",
-      "X","SMICarid","carStatus","carColor","interval","movement")
+      Tuple14.apply(split(0), split(1).toDouble, split(2).toDouble, split(3), split(4), split(5)
+        , split(6), split(7), split(8), split(9), split(10), split(11),split(12),split(13))
+    }).toDF("carId","lon","lat","time","SBH","speed","direction","locationStatus",
+      "X","SMICarid","carStatus","carColor","standTime","realSpeed").filter("realSpeed > 33.33")
     newUtils(target)
   }
+  /**
+    * 将时间格式转换成ISO格式
+    * @return
+    *         carId:String,lon:Double,lat:Double,time:String,SBH:String,speed:String,direction:String,
+                    locationStatus:String,X:String,SMICarid:String,carStatus:String,carColor:String
+    */
+  def ISOFormat(): TaxiDataCleanUtils = {
 
+    val result = this.data.map(row =>{
+      val sdf1 = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
+      val sdf2 = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
+      val time = {
+        val time = row.getString(row.fieldIndex("time"))
+        sdf2.format(sdf1.parse(time))
+      }
+      val bd = TaxiData(row.getString(row.fieldIndex("carId")),row.getDouble(row.fieldIndex("lon")),row.getDouble(row.fieldIndex("lat")),
+        time,row.getString(row.fieldIndex("SBH")),row.getString(row.fieldIndex("speed")),row.getString(row.fieldIndex("direction")),
+        row.getString(row.fieldIndex("locationStatus")),row.getString(row.fieldIndex("X")),row.getString(row.fieldIndex("SMICarid")),
+        row.getString(row.fieldIndex("carStatus")),row.getString(row.fieldIndex("carColor"))
+      )
+      bd
+    }).toDF()
+    newUtils(result)
+  }
+
+}
+
+/**
+  * 清洗前的出租车GPS数据：/parastor/backup/data/sztbdata/GPS_*
+  * 清洗后的出租车GPS数据：/parastor/backup/datum/taxi/gps/
+  * @param carId
+  * @param lon
+  * @param lat
+  * @param time
+  * @param SBH
+  * @param speed
+  * @param direction
+  * @param locationStatus
+  * @param X
+  * @param SMICarid
+  * @param carStatus
+  * @param carColor
+  */
+case class TaxiData(carId:String,lon:Double,lat:Double,time:String,SBH:String,speed:String,direction:String,
+                    locationStatus:String,X:String,SMICarid:String,carStatus:String,carColor:String)
+
+object TaxiDataCleanUtils {
+  def apply(data:DataFrame): TaxiDataCleanUtils = new TaxiDataCleanUtils(data)
 }
