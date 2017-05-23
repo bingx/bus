@@ -6,12 +6,12 @@ import org.apache.spark.sql.SparkSession
 import scala.collection.mutable.ArrayBuffer
 
 case class Record(siteId: String, recordCode: String, cardTime: String, transType: String, cardCode: String, routeName: String, siteName: String)
-case class OD_Record(siteId: String, recordCode: String, cardTime: String, transType: String, cardCode: String, routeName: String, siteName: String,
-              outSiteId: String, outRecordCode: String, outCardTime: String, OutTransType: String, outCardCode: String, outRouteName: String, outSiteName: String)
+case class RecordOD(siteId: String, recordCode: String, cardTime: String, transType: String, cardCode: String, routeName: String, siteName: String,
+                    outSiteId: String, outRecordCode: String, outCardTime: String, OutTransType: String, outCardCode: String, outRouteName: String, outSiteName: String)
 /**
   * Created by wing1995 on 2017/5/8.
   */
-object demoTest {
+object DemoTest {
   def main(args: Array[String]): Unit = {
     val spark = SparkSession
       .builder()
@@ -79,12 +79,12 @@ object demoTest {
     }
     )
     val ODs_new = ODs.map(x => x.split(",")).filter(line => line(3) == "21" && line(10) == "22")
-    val ODs_df = ODs_new.map(line => OD_Record(line(0), line(1), line(2), line(3), line(4), line(5), line(6), line(7), line(8), line(9), line(10), line(11), line(12), line(13))).toDF()
+    val ODs_df = ODs_new.map(line => RecordOD(line(0), line(1), line(2), line(3), line(4), line(5), line(6), line(7), line(8), line(9), line(10), line(11), line(12), line(13))).toDF()
     //val ODs_calTimeDiff = ODs_df.withColumn("timeDiff",(unix_timestamp($"outCardTime", "yyyy-MM-dd HH:mm:ss") - unix_timestamp($"cardTime", "yyyy-MM-dd HH:mm:ss")) / 3600) //将时间差转换为小时
     val timeUtils = new TimeUtils
     val timeDiffUDF = udf((startTime: String, endTime: String) => timeUtils.calTimeDiff(startTime, endTime))
     val ODs_calTimeDiff = ODs_df.withColumn("timeDiff", timeDiffUDF(col("cardTime"), col("outCardTime"))) //将时间差转换为小时
     ODs_calTimeDiff.show()
-    //ODs_calTimeDiff.filter("timeDiff < 3").show()
+
   }
 }

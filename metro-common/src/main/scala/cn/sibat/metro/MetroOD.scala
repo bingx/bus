@@ -54,15 +54,17 @@ class MetroOD extends Serializable {
   }
 
   /**
-    * 生成进站与出站的时间差列，筛选出时间差过长的记录
+    * 生成进站与出站的时间差列，保留出时间差大于3小时以及出入站点不同的记录
     * @param df 由乘客刷卡生成的OD数据构成的DataFrame
     * @return
     */
   def getTimeDiff(df: DataFrame): DataFrame = {
     val timeUtils = new TimeUtils
     val timeDiffUDF = udf((startTime: String, endTime: String) => timeUtils.calTimeDiff(startTime, endTime))
-    val ODs_calTimeDiff = df.withColumn("timeDiff", timeDiffUDF(col("cardTime"), col("outCardTime")))
-    ODs_calTimeDiff
+    val ODsCalTimeDiff = df.withColumn("timeDiff", timeDiffUDF(col("cardTime"), col("outCardTime")))
+    val timeLessThan3 = ODsCalTimeDiff.filter(col("timeDiff") < 3)
+    val inNotEqualToOut = timeLessThan3.filter(col("siteName") =!= col("outSiteName"))
+    inNotEqualToOut
   }
 }
 
