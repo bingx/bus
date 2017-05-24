@@ -11,6 +11,7 @@ import scala.collection.mutable.ArrayBuffer
 /**
   * 站点数据
   * 线路，来回站点标识（上行01,下行02），站点Id，站点名称，站点序号，站点经度，站点纬度
+  * Created by kong on 2017/4/11.
   *
   * @param route        线路
   * @param direct       方向
@@ -19,8 +20,6 @@ import scala.collection.mutable.ArrayBuffer
   * @param stationSeqId 站点序号
   * @param stationLon   站点经度
   * @param stationLat   站点纬度
-  *
-  *                     Created by kong on 2017/4/11.
   */
 case class StationData(route: String, direct: String, stationId: String, stationName: String, stationSeqId: Int, stationLon: Double, stationLat: Double)
 
@@ -54,7 +53,9 @@ case class BusCardData(rId: String, lId: String, term: String, tradeType: String
 case class BusArrivalData(raw: String, carId: String, arrivalTime: String, leaveTime: String, nextStation: String
                           , firstStation: String, arrivalStation: String, stationSeqId: Long, buses: String)
 
-case class Trip(carId: String, route: String, direct: String, firstSeqIndex: Int, ld: Double, nextSeqIndex: Int, rd: Double, tripId: Int)
+case class Trip(carId: String, route: String, direct: String, firstSeqIndex: Int, ld: Double, nextSeqIndex: Int, rd: Double, tripId: Int){
+  override def toString: String = route + "," + direct + "," + firstSeqIndex + "," + ld + "," + nextSeqIndex + "," + rd
+}
 
 class RoadInformation(busDataCleanUtils: BusDataCleanUtils) {
 
@@ -67,82 +68,142 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) {
   }
 
   /**
-    * 历史线路确认
-    * 计算线路中两个点（p1、p2）与gps点（p3）最近的点
-    * 组成p1p3->ld、p1p2->pd、p2p3->rd =>ld+rd<1.2*pd
-    * 符合条则认为这个点是在这条线路上
+    * 多线路匹配算法
+    * 主要是利用弗雷歇距离判定
+    * 线路与gps点的距离越小则越相似
+    * e.g 原始数据加推算内容
+    * 2016-12-01T17:28:25.000Z,00,P��,��B90036,M2413,M2413,2,0,113.875015,22.584335,0.0,2016-12-01T17:28:18.000Z,41.0,140.0,41.0,0.0,M2413,down,1,1188.7146351996068,2,344.7998971948696
+    * 其中M2413,down,1,1188.7146351996068,2,344.7998971948696是推算出来
+    *
+    * @param gps        推算距离后的gps
+    * @param stationMap 站点静态数据map
+    * @return
     */
-  def routeConfirm(bStation: Broadcast[Array[StationData]]): Unit = {
-    distinctLonLat().groupByKey(row => row.getString(row.fieldIndex("carId")) + "," + row.getString(row.fieldIndex("upTime")))
-      .flatMapGroups((s, it) => {
-        //局部sort，对每一辆车的每天的数据进行排序，内存应该占不大
-        val gps = it.toBuffer[Row].sortBy(row => row.getString(row.fieldIndex("upTime"))).map(_.mkString(","))
-        val stationMap = bStation.value.groupBy(sd => sd.route + "," + sd.direct)
-        val map = new mutable.HashMap[String, Array[Int]]() //命中线路，站点集合
-        val upRoute = new mutable.HashSet[String]() //上传站点集合
-
-        stationMap.foreach { route =>
-          gps.foreach { row =>
-            val split = row.split(",")
-            val lon = split(1).toDouble
-            val lat = split(2).toDouble
-            upRoute.+=(split(3))
-            val min2 = Array(Double.MaxValue, Double.MaxValue)
-            var array = new ArrayBuffer[StationData]()
-            route._2.foreach { sd =>
-              val dis = LocationUtil.distance(lon, lat, sd.stationLon, sd.stationLat)
-              if (dis < min2.max) {
-                min2(min2.indexOf(min2.max)) = dis
-                if (array.size < 2)
-                  array.+=(sd)
-                else
-                  array = array.tail.+=(sd)
-              }
-              if (dis < 50.0 && (sd.stationSeqId == 1 || sd.stationSeqId == route._2.length)) {
-                var get = map.getOrElse(route._1, Array[Int]())
-                get = get ++ Seq(0, sd.stationSeqId)
-                map.update(route._1, get)
-              }
-            }
-            if (array.size > 1) {
-              val pd = LocationUtil.distance(array(0).stationLon, array(0).stationLat, array(1).stationLon, array(1).stationLat)
-              if (min2.sum < 1.2 * pd) {
-                var get = map.getOrElse(route._1, Array[Int]())
-                get = get ++ Seq(array(0).stationSeqId, array(1).stationSeqId)
-                map.update(route._1, get)
-              }
-            }
+  def routeConfirm(gps: Array[String], stationMap: Map[String, Array[StationData]], oldLength: Int = 16): Array[String] = {
+    var count = 0
+    var start = 0
+    val firstDirect = new ArrayBuffer[String]()
+    val lonLat = new ArrayBuffer[String]()
+    var resultArr = new ArrayBuffer[String]()
+    gps.foreach { str =>
+      val split = str.split(",")
+      val many = toArrTrip(split, oldLength)
+      if (count == 0) {
+        for (i <- many.indices) {
+          firstDirect += many(i).direct + "," + i
+        }
+      } else if (!firstDirect.indices.forall(i => firstDirect(i).split(",")(0).equals(many(firstDirect(i).split(",")(1).toInt).direct))) {
+        var trueI = 0
+        val gpsPoint = FrechetUtils.lonLat2Point(lonLat.distinct.toArray)
+        var minCost = Double.MaxValue
+        val middle = firstDirect.toArray
+        firstDirect.clear()
+        for (i <- many.indices) {
+          val line = stationMap.getOrElse(many(i).route + "," + middle(i).split(",")(0), Array()).map(sd => sd.stationLon + "," + sd.stationLat)
+          val linePoint = FrechetUtils.lonLat2Point(line)
+          val frechet = FrechetUtils.compareGesture(linePoint, gpsPoint)
+          if (frechet < minCost) {
+            minCost = frechet
+            trueI = i
           }
+          firstDirect += many(i).direct + "," + i
         }
-        val rate = new ArrayBuffer[String]()
-        //站点命中率=gps命中站点数/线路总站点数
-        map.foreach { m =>
-          val lineSize = stationMap.getOrElse(m._1, Array()).length
-          if (m._2.contains(0))
-            rate += s + "," + m._2.mkString(";") + "," + m._1 + ",0;" + m._2.toSet.size + "," + lineSize + "," + (m._2.toSet.size.toDouble - 1) / lineSize + "," + upRoute.mkString(",")
-          else
-            rate += s + "," + m._2.mkString(";") + "," + m._1 + "," + m._2.toSet.size + "," + lineSize + "," + m._2.toSet.size.toDouble / lineSize + "," + upRoute.mkString(",")
+        resultArr ++= gps.slice(start, count).map { str =>
+          val split = str.split(",")
+          val f = (0 until oldLength).map(split(_)).mkString(",")
+          val s = (0 until 6).map(i => split(oldLength + i + trueI * 6)).mkString(",")
+          f + "," + s
         }
-        rate.sortBy(s => s.split(",")(s.split(",").length - upRoute.size - 1)).iterator
-      }).rdd.repartition(1).saveAsTextFile("D:/testData/公交处/rate/BCK127+")
+        lonLat.clear()
+        start = count
+      }
+      lonLat += split(8) + "," + split(9)
+      count += 1
+    }
+    resultArr.toArray
   }
 
   /**
+    * 中间异常点纠正
+    * 规则：
+    * 异常点的前一正常点1与下一正常点2，若1的站点index<=2的站点index，方向正确，Or的第一个方向
+    * 若1的站点index>2的站点index，方向错误，Or的第二个方向
+    * @param gps 推算后的gps
+    * @return 纠正后的gps数据
+    */
+  def error2right(gps: Array[String]): Array[String] = {
+    val firstTrip = new ArrayBuffer[Trip]()
+    var updateStart = 0
+    var updateEnd = 0
+    var count = 0
+    var temp = true
+    val result = new ArrayBuffer[String]()
+    gps.foreach { str =>
+      val split = str.split(",")
+      val many = toArrTrip(split)
+      if (many.forall(_.direct.contains("Or"))) {
+        if (temp) {
+          updateStart = count
+          temp = false
+        }
+      } else {
+        if (!temp) {
+          updateEnd = count - 1
+          result ++= gps.slice(updateStart, updateEnd).map { s =>
+            val split = s.split(",")
+            val trip = toArrTrip(split)
+            for (i <- many.indices) {
+              if (firstTrip(i).firstSeqIndex <= many(i).firstSeqIndex && trip(i).direct.contains("Or")) {
+                trip.update(i, trip(i).copy(direct = trip(i).direct.split("Or")(0)))
+              } else if (firstTrip(i).firstSeqIndex > many(i).firstSeqIndex && trip(i).direct.contains("Or")) {
+                trip.update(i, trip(i).copy(direct = trip(i).direct.split("Or")(1).toLowerCase()))
+              }
+            }
+            (0 until 16).map(split(_)).mkString(",") + "," + trip.indices.map(trip(_).toString).mkString(",")
+          }
+          temp = true
+        }
+        result += str
+        //保证只有前一条记录
+        if (firstTrip.isEmpty)
+          firstTrip ++= many
+        else {
+          firstTrip.clear()
+          firstTrip ++= many
+        }
+
+      }
+      count += 1
+    }
+    result.toArray
+  }
+
+  /**
+    * 把推算内容变成结构体
     *
-    * 1.线路确认
-    * 计算线路中两个点（p1、p2）与gps点（p3）最近的点
-    * 组成p1p3->ld、p1p2->pd、p2p3->rd =>ld+rd<1.2*pd
-    * 符合条则认为这个点是在这条线路上
-    * 2.方向确认
-    * 取两个gps点（lastPoint，curPoint）分别与线路最近的一个点（可能同一个点）
-    * 线路上点的index为lastIndex,curIndex,距离lastDis,curDis
-    * lastIndex < curIndex or lastIndex = curIndex && lastDis < curDis
-    * 则方向是lastIndex->curIndex,否则lastIndex <- curIndex
-    * 3.位置确认
-    * 计算线路中两个点（p1、p2）与gps点（p3）最近的点
-    * 距离组成p1p3->ld、p1p2->pd、p2p3->rd => diff = ld+rd-pd
-    * min(diff)就是车的位置
-    *
+    * @param split     arr[String]
+    * @param oldLength 默认16
+    * @return
+    */
+  def toArrTrip(split: Array[String], oldLength: Int = 16): Array[Trip] = {
+    val carId = split(3)
+    val struct = 6 //结构体默认长度
+    val length = (split.length - oldLength) / struct
+    (0 until length).map(i => Trip(carId, split(oldLength + i * 6), split(oldLength + 1 + i * struct), split(oldLength + 2 + i * struct).toInt, split(oldLength + 3 + i * struct).toDouble, split(oldLength + 4 + i * struct).toInt, split(oldLength + 5 + i * struct).toDouble, 0)).toArray
+  }
+
+  /**
+    * 1.从备选库得出备选线路id，默认上传的线路为正确线路
+    * 2.按天和车分组进行操作
+    * 3.分组操作内容
+    * 3.1 按时间upTime进行排序
+    * 3.2 选取前两个不同位置的点，做方向确认，若识别方向为up，但是接近up的终点站2000m，则方向为down，同理为up，否则为识别的方向
+    * 原理 A---------------------B，AB为终点站，A作为up的初站点，down的末站点，B为末站点，down的初站点
+    * ---------C--D--E------------，D为第一个点，若C为第二个点则相对A站点up的反方向，方向为down，以此类推
+    * 3.3 根据线路方向，把车所在最近站点位置推算出来添加在数据后面，线路，方向，前一站点index，前一站点距离，下一站点index，下一站点距离（多线路加多个）
+    * 3.4 达到线路的末位置，则切换方向，中点偏离点标记为正常方向+Or+异常方向，可能是漂移也可能是没到站点就切方向了
+    * 3.5 中间异常点纠正，根据前后正常的内容进行推算异常点方法见 @link{error2right}
+    * 3.6 多线路纠正，车辆存在替车等情况，或者上传多线路，利用弗雷歇定理进行识别纠正 方法见@link{routeConfirm}
     * 转换成公交到站数据
     *
     * @return df
@@ -212,6 +273,7 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) {
           else if (oneDis > twoDis)
             upOrDown = true
         }
+        //方向匹配
         var firstSD: StationData = null
         var firstDirect = "up"
         gps = gps.map { row =>
@@ -267,165 +329,16 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) {
           result
         }
       }
+
+      //中间异常点纠正
+      var finalResult = error2right(gps)
+
       //多线路筛选
       if (maybeLineId.size > 1) {
-        var count = 0
-        var start = 0
-        val firstDirect = new ArrayBuffer[String]()
-        val lonLat = new ArrayBuffer[String]()
-        var resultArr = new ArrayBuffer[String]()
-        gps.foreach { str =>
-          val split = str.split(",")
-          val carId = split(3)
-          val oldLength = 16
-          val struct = 6
-          val length = (split.length - oldLength) / struct
-          val many = (0 until length).map(i => Trip(carId, split(oldLength + i * 6), split(oldLength + 1 + i * struct), split(oldLength + 2 + i * struct).toInt, split(oldLength + 3 + i * struct).toDouble, split(oldLength + 4 + i * struct).toInt, split(oldLength + 5 + i * struct).toDouble, 0))
-          if (count == 0) {
-            for (i <- 0 until length) {
-              firstDirect += many(i).direct + "," + i
-            }
-          } else if (!firstDirect.indices.forall(i => firstDirect(i).split(",")(0).equals(many(firstDirect(i).split(",")(1).toInt).direct))) {
-            var trueI = 0
-            val gpsPoint = FrechetUtils.lonLat2Point(lonLat.distinct.toArray)
-            var minCost = Double.MaxValue
-            val middle = firstDirect.toArray
-            firstDirect.clear()
-            for (i <- 0 until length) {
-              val line = stationMap.getOrElse(many(i).route + "," + middle(i).split(",")(0), Array()).map(sd => sd.stationLon + "," + sd.stationLat)
-              val linePoint = FrechetUtils.lonLat2Point(line)
-              val frechet = FrechetUtils.compareGesture(linePoint, gpsPoint)
-              if (frechet < minCost) {
-                minCost = frechet
-                trueI = i
-              }
-              firstDirect += many(i).direct + "," + i
-            }
-            resultArr ++= gps.slice(start, count).map { str =>
-              val split = str.split(",")
-              val f = (0 until 16).map(split(_)).mkString(",")
-              val s = (0 until 6).map(i => split(16 + i + trueI * 6)).mkString(",")
-              f + "," + s
-            }
-            lonLat.clear()
-            start = count
-          }
-          lonLat += split(8) + "," + split(9)
-          count += 1
-        }
+        finalResult = routeConfirm(finalResult, stationMap)
       }
-      gps.iterator
-    })
-      //          .foreach(row => {
-      //          val stationInfo = bStation.value
-      //          val stationInfoMap = stationInfo.groupBy(sd => sd.route + "," + sd.direct)
-      //          maybeLineId += row.getString(row.fieldIndex("route"))+","+"up"
-      //          maybeLineId += row.getString(row.fieldIndex("route"))+","+"down"
-      //
-
-      //
-      //          //线路线路标记
-      //          var realRoute = ""
-      //          val lon = row.getDouble(row.fieldIndex("lon"))
-      //          val lat = row.getDouble(row.fieldIndex("lat"))
-      //          stationInfoMap.foreach { line =>
-      //            val min2 = Array(Double.MaxValue, Double.MaxValue)
-      //            var array = new ArrayBuffer[StationData]()
-      //            line._2.foreach { sd =>
-      //              val rd = LocationUtil.distance(sd.stationLon, sd.stationLat, lon, lat)
-      //
-      //              /** =============================线路确认 ============================= */
-      //              if (rd < min2.max) {
-      //                min2(min2.indexOf(min2.max)) = rd
-      //                if (array.size < 2)
-      //                  array.+=(sd)
-      //                else
-      //                  array = array.tail.+=(sd)
-      //              }
-      //            }
-      //            if (array.size > 1) {
-      //              val pd = LocationUtil.distance(array(0).stationLon, array(0).stationLat, array(1).stationLon, array(1).stationLat)
-      //              if (min2.sum < 1.2 * pd) {
-      //                maybeLineId += line._1
-      //              }
-      //            }
-      //          }
-      //
-      //          try {
-      //            maybeLineId.foreach { lineId =>
-      //              var firstSD = stationInfoMap.get(realRoute).get(0)
-      //              var minLocation = Double.MaxValue
-      //              var lastIndex = ""
-      //              var curIndex = ""
-      //              var index = 0
-      //
-      //              if (result.isEmpty) {
-      //                firstRow = row
-      //              }
-      //              var minLast = Double.MaxValue
-      //              var minCur = Double.MaxValue
-      //              var lastLinkIndex = firstSD.stationSeqId
-      //              var curLinkIndex = firstSD.stationSeqId
-      //
-      //              stationInfoMap.get(realRoute).get.foreach(sd => {
-      //                val rd = LocationUtil.distance(sd.stationLon, sd.stationLat, lon, lat)
-      //
-      //                /** ==============================位置确认============================== */
-      //                if (index != 0) {
-      //                  val ld = LocationUtil.distance(firstSD.stationLon, firstSD.stationLat, lon, lat)
-      //                  val sdDis = LocationUtil.distance(firstSD.stationLon, firstSD.stationLat, sd.stationLon, sd.stationLat)
-      //                  val diff = rd + ld - sdDis
-      //                  if (diff < minLocation) {
-      //                    lastIndex = sd.stationSeqId + "," + ld
-      //                    curIndex = sd.stationSeqId + "," + rd
-      //                    minLocation = diff
-      //                  }
-      //                  firstSD = sd
-      //                }
-      //
-      //                /** =============================方向确认============================= */
-      //                val lastDis = LocationUtil.distance(firstRow.getDouble(firstRow.fieldIndex("lon")), firstRow.getDouble(firstRow.fieldIndex("lat")), sd.stationLon, sd.stationLat)
-      //                val curDis = rd
-      //                if (lastDis < minLast) {
-      //                  minLast = lastDis
-      //                  lastLinkIndex = sd.stationSeqId
-      //                }
-      //                if (curDis < minCur) {
-      //                  minCur = curDis
-      //                  curLinkIndex = sd.stationSeqId
-      //                }
-      //                firstRow = row
-      //                index = 1
-      //              })
-      //
-      //              var direct = "unknown"
-      //              if (lastLinkIndex < curLinkIndex || (lastLinkIndex == curLinkIndex && minLast > minCur)) {
-      //                direct = "1"
-      //                //val direct = "last->cur"
-      //              } else if (lastLinkIndex > curLinkIndex || (lastLinkIndex == curLinkIndex && minLast > minCur)) {
-      //                direct = "2"
-      //                //val direct = "cur->last"
-      //              }
-      //              result.+=(row.mkString(",") + "," + realRoute + "," + lastIndex + "," + curIndex + "," + direct)
-      //            }
-      //          } catch {
-      //            case _: Throwable => result.+=(row.mkString(",") + "," + realRoute)
-      //          }
-      //        })
-      //
-      //        result.toArray
-      //      }).flatMap(it => {
-      //      //数据格式row,realRoute,lastIndex,lastDis,curIndex,curDis,direct
-      //      //      val result = new ArrayBuffer[BusArrivalData]()
-      //      //      it.filter { str =>
-      //      //        val split = str.split(",")
-      //      //        val curDis = split(split.length - 2)
-      //      //        curDis.toDouble < 50.0
-      //      //      }
-      //      it
-      //    })
-      //.count()
-      .rdd.saveAsTextFile("D:/testData/公交处/toStation5")
+      finalResult.iterator
+    }).rdd.saveAsTextFile("D:/testData/公交处/toStation5")
 
     busDataCleanUtils.data
   }
