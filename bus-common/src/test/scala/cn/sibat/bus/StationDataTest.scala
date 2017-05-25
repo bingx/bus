@@ -22,15 +22,13 @@ object StationDataTest {
     val spark = SparkSession.builder().config("spark.sql.warehouse.dir", "file:///c:/path/to/my").appName("StationDataTest").master("local[*]").getOrCreate()
     //spark.sparkContext.setLogLevel("ERROR")
     import spark.implicits._
-    //    val bStation = spark.sparkContext.broadcast(spark.read.textFile("D:/testData/公交处/lineInfo.csv").map { str =>
-    //      val Array(route, direct, stationId, stationName, stationSeqId, stationLat, stationLon) = str.split(",")
-    //      new StationData(route, direct, stationId, stationName, stationSeqId.toInt, stationLon.toDouble, stationLat.toDouble)
-    //    }.collect())
-
-    val mapStation = spark.read.textFile("D:/testData/公交处/lineInfo.csv").map { str =>
+    val station = spark.read.textFile("D:/testData/公交处/lineInfo.csv").map { str =>
       val Array(route, direct, stationId, stationName, stationSeqId, stationLat, stationLon) = str.split(",")
-      StationData(route, direct, stationId, stationName, stationSeqId.toInt, stationLon.toDouble, stationLat.toDouble)
-    }.collect().groupBy(sd => sd.route + "," + sd.direct)
+      new StationData(route, direct, stationId, stationName, stationSeqId.toInt, stationLon.toDouble, stationLat.toDouble)
+    }.collect()
+    val bStation = spark.sparkContext.broadcast(station)
+
+    val mapStation = station.groupBy(sd => sd.route + "," + sd.direct)
 
     //查看某辆车
     //    val filter_1 = udf{(carId:String)=>
@@ -127,115 +125,132 @@ object StationDataTest {
     //��BJ7547效果,局部down��BC0980
     //spark.read.textFile("D:/testData/公交处/toStation5").rdd.filter(str => str.contains("��B90036")).repartition(1).saveAsTextFile("D:/testData/公交处/B90036ToStation")
 
-    //多路线筛选
-//    val collect = spark.read.textFile("D:/testData/公交处/B90036ToStation1").collect()
-//    var count = 0
-//    var start = 0
-//    val firstDirect = new ArrayBuffer[String]()
-//    val lonLat = new ArrayBuffer[String]()
-//    var tripId = 0
-//    var resultArr = new ArrayBuffer[String]()
-//    collect.foreach { str =>
-//      val split = str.split(",")
-//      val carId = split(3)
-//      val oldLength = 16
-//      val struct = 6
-//      val length = (split.length - oldLength) / struct
-//      val many = (0 until length).map(i => TripTest(carId, split(oldLength + i * 6), split(oldLength + 1 + i * struct), split(oldLength + 2 + i * struct).toInt, split(oldLength + 3 + i * struct).toDouble, split(oldLength + 4 + i * struct).toInt, split(oldLength + 5 + i * struct).toDouble, 0))
-//      if (count == 0) {
-//        for (i <- 0 until length) {
-//          firstDirect += many(i).direct + "," + i
-//        }
-//      } else if (!firstDirect.indices.forall(i => firstDirect(i).split(",")(0).equals(many(firstDirect(i).split(",")(1).toInt).direct))) {
-//        var trueI = 0
-//        val gpsPoint = FrechetUtils.lonLat2Point(lonLat.distinct.toArray)
-//        var minCost = Double.MaxValue
-//        val middle = firstDirect.toArray
-//        firstDirect.clear()
-//        tripId += 1
-//        for (i <- 0 until length) {
-//          val line = mapStation.getOrElse(many(i).route + "," + middle(i).split(",")(0), Array()).map(sd => sd.stationLon + "," + sd.stationLat)
-//          val linePoint = FrechetUtils.lonLat2Point(line)
-//          val frechet = FrechetUtils.compareGesture(linePoint, gpsPoint)
-//          if (frechet < minCost) {
-//            minCost = frechet
-//            trueI = i
-//          }
-//          firstDirect += many(i).direct + "," + i
-//        }
-//        val timeStart = collect(start).split(",")(11)
-//        val timeEnd = collect(count).split(",")(11)
-//        val sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
-//        val time = (sdf.parse(timeEnd).getTime - sdf.parse(timeStart).getTime) / 1000
-//        println(time)
-//        if (time > 30 * 60) {
-//          tripId += 1
-//        }
-//        resultArr ++= collect.slice(start, count).map { str =>
-//          val split = str.split(",")
-//          val f = (0 until 16).map(split(_)).mkString(",")
-//          val s = (0 until 6).map(i => split(16 + i + trueI * 6)).mkString(",")
-//          f + "," + s + "," + tripId
-//        }
-//        lonLat.clear()
-//        start = count
-//      }
-//      lonLat += split(8) + "," + split(9)
-//      count += 1
-//    }
-//    spark.sparkContext.parallelize(resultArr, 1).saveAsTextFile("D:/testData/公交处/B90036ToRight")
+    //多路线筛选与分趟
+    //    val collect = spark.read.textFile("D:/testData/公交处/B90036ToStation1").collect()
+    //    var count = 0
+    //    var start = 0
+    //    val firstDirect = new ArrayBuffer[String]()
+    //    val lonLat = new ArrayBuffer[String]()
+    //    var tripId = 0
+    //    var resultArr = new ArrayBuffer[String]()
+    //    val sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
+    //    var flag = false
+    //    collect.foreach { str =>
+    //      val split = str.split(",")
+    //      val carId = split(3)
+    //      val oldLength = 16
+    //      val struct = 6
+    //      val length = (split.length - oldLength) / struct
+    //      val many = (0 until length).map(i => TripTest(carId, split(oldLength + i * 6), split(oldLength + 1 + i * struct), split(oldLength + 2 + i * struct).toInt, split(oldLength + 3 + i * struct).toDouble, split(oldLength + 4 + i * struct).toInt, split(oldLength + 5 + i * struct).toDouble, 0))
+    //      if (count == 0) {
+    //        for (i <- 0 until length) {
+    //          firstDirect += many(i).direct + "," + i
+    //        }
+    //      } else if (!firstDirect.indices.forall(i => firstDirect(i).split(",")(0).equals(many(firstDirect(i).split(",")(1).toInt).direct))) {
+    //        var trueI = 0
+    //        val gpsPoint = FrechetUtils.lonLat2Point(lonLat.distinct.toArray)
+    //        var minCost = Double.MaxValue
+    //        val middle = firstDirect.toArray
+    //        firstDirect.clear()
+    //        for (i <- 0 until length) {
+    //          val line = mapStation.getOrElse(many(i).route + "," + middle(i).split(",")(0), Array()).map(sd => sd.stationLon + "," + sd.stationLat)
+    //          val linePoint = FrechetUtils.lonLat2Point(line)
+    //          val frechet = FrechetUtils.compareGesture(linePoint, gpsPoint)
+    //          if (frechet < minCost) {
+    //            minCost = frechet
+    //            trueI = i
+    //          }
+    //          firstDirect += many(i).direct + "," + i
+    //        }
+    //        val timeStart = collect(start).split(",")(11)
+    //        val timeEnd = collect(count).split(",")(11)
+    //        val time = (sdf.parse(timeEnd).getTime - sdf.parse(timeStart).getTime) / 1000
+    //        //初次执行完需要更新加1，下面就得等下一轮，使趟次少1
+    //        if (time > 30 * 60 && tripId ==0 && flag) {
+    //          tripId += 1
+    //        }
+    //        resultArr ++= collect.slice(start, count).map { str =>
+    //          val split = str.split(",")
+    //          val f = (0 until 16).map(split(_)).mkString(",")
+    //          val s = (0 until 6).map(i => split(16 + i + trueI * 6)).mkString(",")
+    //          f + "," + s + "," + tripId
+    //        }
+    //        //不过半小时的趟次合并到满的趟次里
+    //        if (time > 30 * 60) {
+    //          if (flag) {
+    //            tripId += 1
+    //            flag = false
+    //          }
+    //          flag = true
+    //        }
+    //        lonLat.clear()
+    //        start = count
+    //      }
+    //      lonLat += split(8) + "," + split(9)
+    //      count += 1
+    //    }
+    //    spark.sparkContext.parallelize(resultArr, 1).saveAsTextFile("D:/testData/公交处/B90036ToRight1")
 
-    val collect = spark.read.textFile("D:/testData/公交处/B90036ToStation").collect()
-    //中间方向异常点纠正
-    val firstTrip = new ArrayBuffer[TripTest]()
-    var updateStart = 0
-    var updateEnd = 0
-    var count = 0
-    var temp = true
-    val result = new ArrayBuffer[String]()
-    collect.foreach { str =>
-      val split = str.split(",")
-      val many = toArrTrip(split)
-      if (many.forall(_.direct.contains("Or"))) {
-        if (temp) {
-          updateStart = count
-          temp = false
-        }
-      } else {
-        if (!temp) {
-          updateEnd = count - 1
-          result ++= collect.slice(updateStart, updateEnd).map { s =>
-            val split_1 = s.split(",")
-            val trip = toArrTrip(split)
-            for (i <- many.indices) {
-              if (firstTrip(i).firstSeqIndex <= many(i).firstSeqIndex && trip(i).direct.contains("Or")) {
-                trip.update(i, trip(i).copy(direct = trip(i).direct.split("Or")(0)))
-              } else if (firstTrip(i).firstSeqIndex > many(i).firstSeqIndex && trip(i).direct.contains("Or")) {
-                trip.update(i, trip(i).copy(direct = trip(i).direct.split("Or")(1).toLowerCase()))
-              }
-            }
-            (0 until 16).map(split_1(_)).mkString(",") + "," + trip.indices.map(trip(_).toString).mkString(",")
-          }
-          temp = true
-        }
-        //println(updateStart,updateEnd,who.mkString(","))
-        result += str
-        if (firstTrip.isEmpty)
-          firstTrip ++= many
-        else {
-          firstTrip.clear()
-          firstTrip ++= many
-        }
+    //    val collect = spark.read.textFile("D:/testData/公交处/B90036ToStation").collect()
+    //    //中间方向异常点纠正
+    //    val firstTrip = new ArrayBuffer[TripTest]()
+    //    var updateStart = 0
+    //    var updateEnd = 0
+    //    var count = 0
+    //    var temp = true
+    //    val result = new ArrayBuffer[String]()
+    //    collect.foreach { str =>
+    //      val split = str.split(",")
+    //      val many = toArrTrip(split)
+    //      if (many.forall(_.direct.contains("Or"))) {
+    //        if (temp) {
+    //          updateStart = count
+    //          temp = false
+    //        }
+    //      } else {
+    //        if (!temp) {
+    //          updateEnd = count - 1
+    //          result ++= collect.slice(updateStart, updateEnd).map { s =>
+    //            val split_1 = s.split(",")
+    //            val trip = toArrTrip(split)
+    //            for (i <- many.indices) {
+    //              if (firstTrip(i).firstSeqIndex <= many(i).firstSeqIndex && trip(i).direct.contains("Or")) {
+    //                trip.update(i, trip(i).copy(direct = trip(i).direct.split("Or")(0)))
+    //              } else if (firstTrip(i).firstSeqIndex > many(i).firstSeqIndex && trip(i).direct.contains("Or")) {
+    //                trip.update(i, trip(i).copy(direct = trip(i).direct.split("Or")(1).toLowerCase()))
+    //              }
+    //            }
+    //            (0 until 16).map(split_1(_)).mkString(",") + "," + trip.indices.map(trip(_).toString).mkString(",")
+    //          }
+    //          temp = true
+    //        }
+    //        //println(updateStart,updateEnd,who.mkString(","))
+    //        result += str
+    //        if (firstTrip.isEmpty)
+    //          firstTrip ++= many
+    //        else {
+    //          firstTrip.clear()
+    //          firstTrip ++= many
+    //        }
+    //
+    //      }
+    //      count += 1
+    //    }
+    //
+    //    result.foreach { s =>
+    //
+    //    }
+    //
+    //    spark.sparkContext.parallelize(result, 1).count() //.saveAsTextFile("D:/testData/公交处/B90036ToStation2")
 
-      }
-      count += 1
-    }
+    //被过滤分析，原来总数：14403辆车，传空车辆：36，线路错误数：771，一直不动车：436
+//    val carId0 = spark.read.textFile("D:/testData/公交处/toStation5")
+//    val carId1 = spark.read.textFile("D:/testData/公交处/toStation6").map(str=>str.split(",")(3)).distinct().collect()
+//    val b = spark.sparkContext.broadcast(carId1)
+//    carId0.filter(str=> !b.value.contains(str.split(",")(3))).rdd.saveAsTextFile("D:/testData/公交处/noTrip")
 
-    result.foreach { s =>
+    //用车辆运动模型推测公交到站时间，原来是筛选离站点50进行识别的，但是会有站点识别不到的情况
 
-    }
-
-    spark.sparkContext.parallelize(result, 1).count() //.saveAsTextFile("D:/testData/公交处/B90036ToStation2")
   }
 
   def toArrTrip(split: Array[String]): Array[TripTest] = {

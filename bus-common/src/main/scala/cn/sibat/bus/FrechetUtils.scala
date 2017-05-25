@@ -65,7 +65,8 @@ object FrechetUtils {
         matrix(i) = arr
       }
     }
-    result = calDistance(line1, line2, matrix, line1.length - 1, line2.length - 1)
+    if (line1.length > 1 && line2.length > 1)
+      result = calDistance(line1, line2, matrix, line1.length - 1, line2.length - 1)
     result
   }
 
@@ -107,21 +108,21 @@ object FrechetUtils {
     val arrGps_down = gps_down.split("\n").distinct.map(s => Point(s.split(",")(0).toDouble, s.split(",")(1).toDouble))
     val up2down = compareGesture(arrLine1_up, arrGps_down)
     val up2up = compareGesture(arrLine1_up, arrGps_up)
-    val down2up = compareGesture(arrLine1_down,arrGps_up)
-    val down2down = compareGesture(arrLine1_down,arrGps_down)
+    val down2up = compareGesture(arrLine1_down, arrGps_up)
+    val down2down = compareGesture(arrLine1_down, arrGps_down)
     val line1Down = down2down
-    val line2Down = compareGesture(arrLine2_up,arrGps_down)
+    val line2Down = compareGesture(arrLine2_up, arrGps_down)
     println(s"up2down,$up2down\ndown2down,$down2down\nup2up,$up2up\ndown2up,$down2up")
     println(s"Line1DownVsLine2Down:$line1Down,$line2Down")
 
     //异常值检测
-//    var max = Double.MinValue
-//    for (i <- 0 until arrGps_up.length-2){
-//      val dis= disP(arrGps_up(i),arrGps_up(i+1))
-//      if (max < dis)
-//        println(arrGps_up(i)+","+arrGps_up(i+1)+","+dis)
-//      max = math.max(max,dis)
-//    }
-//    println(max)
+    //    var max = Double.MinValue
+    //    for (i <- 0 until arrGps_up.length-2){
+    //      val dis= disP(arrGps_up(i),arrGps_up(i+1))
+    //      if (max < dis)
+    //        println(arrGps_up(i)+","+arrGps_up(i+1)+","+dis)
+    //      max = math.max(max,dis)
+    //    }
+    //    println(max)
   }
 }

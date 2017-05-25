@@ -1,5 +1,7 @@
 package cn.sibat.bus
 
+import java.text.SimpleDateFormat
+
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.sql.functions._
@@ -53,11 +55,11 @@ case class BusCardData(rId: String, lId: String, term: String, tradeType: String
 case class BusArrivalData(raw: String, carId: String, arrivalTime: String, leaveTime: String, nextStation: String
                           , firstStation: String, arrivalStation: String, stationSeqId: Long, buses: String)
 
-case class Trip(carId: String, route: String, direct: String, firstSeqIndex: Int, ld: Double, nextSeqIndex: Int, rd: Double, tripId: Int){
+case class Trip(carId: String, route: String, direct: String, firstSeqIndex: Int, ld: Double, nextSeqIndex: Int, rd: Double, tripId: Int) {
   override def toString: String = route + "," + direct + "," + firstSeqIndex + "," + ld + "," + nextSeqIndex + "," + rd
 }
 
-class RoadInformation(busDataCleanUtils: BusDataCleanUtils) {
+class RoadInformation(busDataCleanUtils: BusDataCleanUtils) extends Serializable {
 
   import busDataCleanUtils.data.sparkSession.implicits._
 
@@ -79,12 +81,15 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) {
     * @param stationMap 站点静态数据map
     * @return
     */
-  def routeConfirm(gps: Array[String], stationMap: Map[String, Array[StationData]], oldLength: Int = 16): Array[String] = {
+  def routeConfirm(gps: Array[String], stationMap: Map[String, Array[StationData]], oldLength: Int = 16, maybeLine: Int): Array[String] = {
     var count = 0
     var start = 0
     val firstDirect = new ArrayBuffer[String]()
     val lonLat = new ArrayBuffer[String]()
+    var tripId = 0
     var resultArr = new ArrayBuffer[String]()
+    val sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
+    var flag = false
     gps.foreach { str =>
       val split = str.split(",")
       val many = toArrTrip(split, oldLength)
@@ -94,26 +99,51 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) {
         }
       } else if (!firstDirect.indices.forall(i => firstDirect(i).split(",")(0).equals(many(firstDirect(i).split(",")(1).toInt).direct))) {
         var trueI = 0
-        val gpsPoint = FrechetUtils.lonLat2Point(lonLat.distinct.toArray)
-        var minCost = Double.MaxValue
-        val middle = firstDirect.toArray
-        firstDirect.clear()
-        for (i <- many.indices) {
-          val line = stationMap.getOrElse(many(i).route + "," + middle(i).split(",")(0), Array()).map(sd => sd.stationLon + "," + sd.stationLat)
-          val linePoint = FrechetUtils.lonLat2Point(line)
-          val frechet = FrechetUtils.compareGesture(linePoint, gpsPoint)
-          if (frechet < minCost) {
-            minCost = frechet
-            trueI = i
+        if (maybeLine > 1) {
+          val gpsPoint = FrechetUtils.lonLat2Point(lonLat.distinct.toArray)
+          var minCost = Double.MaxValue
+          val middle = firstDirect.toArray
+          firstDirect.clear()
+          for (i <- many.indices) {
+            val line = stationMap.getOrElse(many(i).route + "," + middle(i).split(",")(0), Array()).map(sd => sd.stationLon + "," + sd.stationLat)
+            val linePoint = FrechetUtils.lonLat2Point(line)
+            val frechet = FrechetUtils.compareGesture(linePoint, gpsPoint)
+            if (frechet < minCost) {
+              minCost = frechet
+              trueI = i
+            }
+            firstDirect += many(i).direct + "," + i
           }
-          firstDirect += many(i).direct + "," + i
+        }else{
+          firstDirect.clear()
+          for (i <- many.indices) {
+            firstDirect += many(i).direct + "," + i
+          }
         }
+        val timeStart = gps(start).split(",")(11)
+        val timeEnd = gps(count).split(",")(11)
+        val time = (sdf.parse(timeEnd).getTime - sdf.parse(timeStart).getTime) / 1000
+        //初次执行完需要更新加1，下面就得等下一轮，使趟次少1
+        if (time > 20 * 60 && tripId == 0 && flag) {
+          tripId += 1
+        }
+
         resultArr ++= gps.slice(start, count).map { str =>
           val split = str.split(",")
           val f = (0 until oldLength).map(split(_)).mkString(",")
           val s = (0 until 6).map(i => split(oldLength + i + trueI * 6)).mkString(",")
-          f + "," + s
+          f + "," + s + "," + tripId
         }
+
+        //不过半小时的趟次合并到满的趟次里
+        if (time > 20 * 60) {
+          if (flag) {
+            tripId += 1
+            flag = false
+          }
+          flag = true
+        }
+
         lonLat.clear()
         start = count
       }
@@ -128,6 +158,7 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) {
     * 规则：
     * 异常点的前一正常点1与下一正常点2，若1的站点index<=2的站点index，方向正确，Or的第一个方向
     * 若1的站点index>2的站点index，方向错误，Or的第二个方向
+    *
     * @param gps 推算后的gps
     * @return 纠正后的gps数据
     */
@@ -331,14 +362,13 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) {
       }
 
       //中间异常点纠正
-      var finalResult = error2right(gps)
+      val err2right = error2right(gps)
 
-      //多线路筛选
-      if (maybeLineId.size > 1) {
-        finalResult = routeConfirm(finalResult, stationMap)
-      }
+      //多线路筛选与分趟
+      val finalResult = routeConfirm(err2right, stationMap,maybeLine = maybeLineId.size)
+
       finalResult.iterator
-    }).rdd.saveAsTextFile("D:/testData/公交处/toStation5")
+    }).rdd.saveAsTextFile("D:/testData/公交处/toStation6")
 
     busDataCleanUtils.data
   }
