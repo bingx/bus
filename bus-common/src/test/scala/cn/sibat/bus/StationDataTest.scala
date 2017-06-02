@@ -2,7 +2,7 @@ package cn.sibat.bus
 
 import java.text.SimpleDateFormat
 
-import org.apache.spark.sql.{Row, SparkSession}
+import org.apache.spark.sql.{Row, SQLContext, SparkSession}
 import org.apache.spark.sql.functions._
 
 import scala.collection.immutable.HashSet
@@ -244,13 +244,15 @@ object StationDataTest {
     //    spark.sparkContext.parallelize(result, 1).count() //.saveAsTextFile("D:/testData/公交处/B90036ToStation2")
 
     //被过滤分析，原来总数：14403辆车，传空车辆：36，线路错误数：771，一直不动车：436
-//    val carId0 = spark.read.textFile("D:/testData/公交处/toStation5")
-//    val carId1 = spark.read.textFile("D:/testData/公交处/toStation6").map(str=>str.split(",")(3)).distinct().collect()
-//    val b = spark.sparkContext.broadcast(carId1)
-//    carId0.filter(str=> !b.value.contains(str.split(",")(3))).rdd.saveAsTextFile("D:/testData/公交处/noTrip")
+    //    val carId0 = spark.read.textFile("D:/testData/公交处/toStation5")
+    //    val carId1 = spark.read.textFile("D:/testData/公交处/toStation6").map(str=>str.split(",")(3)).distinct().collect()
+    //    val b = spark.sparkContext.broadcast(carId1)
+    //    carId0.filter(str=> !b.value.contains(str.split(",")(3))).rdd.saveAsTextFile("D:/testData/公交处/noTrip")
 
     //用车辆运动模型推测公交到站时间，原来是筛选离站点50进行识别的，但是会有站点识别不到的情况
-
+    val collect = spark.read.textFile("D:/testData/公交处/B90036ToRight1").collect()
+    collect.foreach { s =>
+    }
   }
 
   def toArrTrip(split: Array[String]): Array[TripTest] = {

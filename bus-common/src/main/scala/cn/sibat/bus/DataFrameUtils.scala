@@ -86,9 +86,15 @@ class DataFrameUtils {
     val stand = dataFrame.schema.map(_.name).filter(!_.equals(changeCol))
     var df: DataFrame = dataFrame
     var castType = colsType
-    if (colsType.isEmpty || colsType == null) {
-      castType = Array("String")
-      castType = castType ++ ("String," * (cols.length - 1)).split(",")
+    try {
+      if (colsType.isEmpty || colsType == null) {
+        castType = Array("String")
+        castType = castType ++ ("String," * (cols.length - 1)).split(",")
+      }
+    }catch {
+      case e:Exception =>
+        castType = Array("String")
+        castType = castType ++ ("String," * (cols.length - 1)).split(",")
     }
     for (i <- 0 until cols.length) {
       df = df.withColumn(cols(i), udf(lit(i), col(changeCol)).cast(castType(i).toLowerCase()))
