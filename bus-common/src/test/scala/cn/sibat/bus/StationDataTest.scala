@@ -24,7 +24,8 @@ object StationDataTest {
     import spark.implicits._
     val station = spark.read.textFile("D:/testData/公交处/lineInfo.csv").map { str =>
       val Array(route, direct, stationId, stationName, stationSeqId, stationLat, stationLon) = str.split(",")
-      new StationData(route, direct, stationId, stationName, stationSeqId.toInt, stationLon.toDouble, stationLat.toDouble)
+      val Array(lat,lon) = LocationUtil.gcj02_To_84(stationLat.toDouble,stationLon.toDouble).split(",")
+      new StationData(route, direct, stationId, stationName, stationSeqId.toInt, lon.toDouble, lat.toDouble)
     }.collect()
     val bStation = spark.sparkContext.broadcast(station)
 
@@ -91,12 +92,12 @@ object StationDataTest {
 
 
     //线路匹配
-    //    val data = spark.read.textFile("D:/testData/公交处/data/2016-12-01/*/*")
-    //    val busDataCleanUtils = new BusDataCleanUtils(data.toDF())
-    //    val filter = busDataCleanUtils.dataFormat().zeroPoint().filterStatus() //.data.filter(col("carId") === lit("��BCK127")) //��B89863
-    //    val roadInformation = new RoadInformation(filter)
-    //
-    //    roadInformation.toStation(bStation)
+    val data = spark.read.textFile("D:/testData/公交处/data/2016-12-01/*/*")
+    val busDataCleanUtils = new BusDataCleanUtils(data.toDF())
+    val filter = busDataCleanUtils.dataFormat().zeroPoint().filterStatus() //.data.filter(col("carId") === lit("��BCK127")) //��B89863
+    val roadInformation = new RoadInformation(filter)
+
+    roadInformation.toStation(bStation)
 
     //查看某条线路
     //    val time2date = udf { (upTime: String) =>
@@ -250,9 +251,9 @@ object StationDataTest {
     //    carId0.filter(str=> !b.value.contains(str.split(",")(3))).rdd.saveAsTextFile("D:/testData/公交处/noTrip")
 
     //用车辆运动模型推测公交到站时间，原来是筛选离站点50进行识别的，但是会有站点识别不到的情况
-    val collect = spark.read.textFile("D:/testData/公交处/B90036ToRight1").collect()
-    collect.foreach { s =>
-    }
+//    val collect = spark.read.textFile("D:/testData/公交处/B90036ToRight1").collect()
+//    collect.foreach { s =>
+//    }
   }
 
   def toArrTrip(split: Array[String]): Array[TripTest] = {

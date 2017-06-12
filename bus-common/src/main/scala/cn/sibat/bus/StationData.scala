@@ -368,7 +368,7 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) extends Serializable
       val finalResult = routeConfirm(err2right, stationMap,maybeLine = maybeLineId.size)
 
       finalResult.iterator
-    }).rdd.saveAsTextFile("D:/testData/公交处/toStation6")
+    }).rdd.saveAsTextFile("D:/testData/公交处/toStation7")
 
     busDataCleanUtils.data
   }
