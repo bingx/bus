@@ -91,8 +91,5 @@ object TestBus {
 //    val filter = data.filter(s=>s.split(",").length > 16)
 //    println(filter.map(_.split(",")(3)).distinct().count())
 //    filter.rdd.sortBy(s=>s.split(",")(3)).repartition(1).saveAsTextFile("D:/testData/公交处/arrivalTime")
-    val v1 = "2016-12-01T16:35:39.000Z,01,��BX4675,��BX4675,B6624,B6624,2,0,113.941452,22.754307,0.000000,2016-12-01T16:35:32.000Z,33.000000,314.000000,33.000000,0.000000,G_GM0798,2016-12-01T16:35:32.000Z,"
-    val v2 = "2016-12-01T15:05:11.000Z,01,��BX4675,��BX4675,B6624,B6624,2,0,113.936195,22.758846,0.000000,2016-12-01T15:05:05.000Z,29.000000,313.000000,29.000000,0.000000,,2016-12-01T15:05:05.000Z,G_GM0195"
-    println(v1.split(",")(19)+"\n"+v2.split(",")(16).isEmpty)
   }
 }

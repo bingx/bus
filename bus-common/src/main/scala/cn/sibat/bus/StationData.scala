@@ -114,7 +114,7 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) extends Serializable
             }
             firstDirect += many(i).direct + "," + i
           }
-        }else{
+        } else {
           firstDirect.clear()
           for (i <- many.indices) {
             firstDirect += many(i).direct + "," + i
@@ -228,7 +228,7 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) extends Serializable
     * 2.按天和车分组进行操作
     * 3.分组操作内容
     * 3.1 按时间upTime进行排序
-    * 3.2 选取前两个不同位置的点，做方向确认，若识别方向为up，但是接近up的终点站2000m，则方向为down，同理为up，否则为识别的方向
+    * 3.2 选取前两个不同位置的点，做方向确认，若识别方向为up，但是接近up的终点站200m，则方向为down，同理为up，否则为识别的方向
     * 原理 A---------------------B，AB为终点站，A作为up的初站点，down的末站点，B为末站点，down的初站点
     * ---------C--D--E------------，D为第一个点，若C为第二个点则相对A站点up的反方向，方向为down，以此类推
     * 3.3 根据线路方向，把车所在最近站点位置推算出来添加在数据后面，线路，方向，前一站点index，前一站点距离，下一站点index，下一站点距离（多线路加多个）
@@ -290,7 +290,7 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) extends Serializable
           val Array(one, _*) = maybeRouteUp.filter(sd => sd.stationSeqId == 1)
           val oneDis = LocationUtil.distance(firstLon, firstLat, one.stationLon, one.stationLat)
           val twoDis = LocationUtil.distance(secondLon, secondLat, one.stationLon, one.stationLat)
-          if (oneDis <= 2000.0)
+          if (oneDis <= 200.0)
             upOrDown = true
           else if (oneDis > twoDis && !maybeRouteDown.isEmpty)
             upOrDown = false
@@ -299,48 +299,140 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) extends Serializable
           val Array(one, _*) = maybeRouteDown.filter(sd => sd.stationSeqId == 1)
           val oneDis = LocationUtil.distance(firstLon, firstLat, one.stationLon, one.stationLat)
           val twoDis = LocationUtil.distance(secondLon, secondLat, one.stationLon, one.stationLat)
-          if (oneDis <= 2000.0)
+          if (oneDis <= 200.0)
             upOrDown = false
           else if (oneDis > twoDis)
             upOrDown = true
         }
         //方向匹配
-        var firstSD: StationData = null
-        var firstDirect = "up"
+        var firstSD: StationData = null //前一记录的站点信息
+        var firstDirect = "up" //初始化方向
+        var firstIndex = 0 //前一记录站点顺序
+        var isStatus = false //是否进入运营状态
+        var endStationCount = 0 //到达总站后所必须保留的记录数
+        var isArrival = false //是否到达终点站
+        var stopCount = 0 //停止阈值
+
         gps = gps.map { row =>
           var result = row
           val split = row.split(",")
           val lon = split(8).toDouble
           val lat = split(9).toDouble
+          val time = split(11)
           val min2 = Array(Double.MaxValue, Double.MaxValue)
           val min2SD = new Array[StationData](2)
           if (upOrDown) {
-            for (i <- 0 until maybeRouteUp.length - 1) {
-              val ld = LocationUtil.distance(lon, lat, maybeRouteUp(i).stationLon, maybeRouteUp(i).stationLat)
-              val rd = LocationUtil.distance(lon, lat, maybeRouteUp(i + 1).stationLon, maybeRouteUp(i + 1).stationLat)
-              if (min2(0) > ld && min2(1) > rd) {
-                min2(0) = ld
-                min2(1) = rd
-                min2SD(0) = maybeRouteUp(i)
-                min2SD(1) = maybeRouteUp(i + 1)
-                if (firstSD != null && min2SD(1).stationSeqId < firstSD.stationSeqId && math.abs(min2SD(1).stationSeqId - maybeRouteUp.length) < 3 && !maybeRouteDown.isEmpty)
-                  upOrDown = false
+            if (!isStatus) {
+              for (i <- 0 until maybeRouteUp.length - 1) {
+                val ld = LocationUtil.distance(lon, lat, maybeRouteUp(i).stationLon, maybeRouteUp(i).stationLat)
+                val rd = LocationUtil.distance(lon, lat, maybeRouteUp(i + 1).stationLon, maybeRouteUp(i + 1).stationLat)
+                if (min2(0) > ld && min2(1) > rd) {
+                  min2(0) = ld
+                  min2(1) = rd
+                  min2SD(0) = maybeRouteUp(i)
+                  min2SD(1) = maybeRouteUp(i + 1)
+                  firstIndex = min2SD(0).stationSeqId - 1
+                  if (firstSD != null && min2SD(1).stationSeqId < firstSD.stationSeqId && math.abs(min2SD(1).stationSeqId - maybeRouteUp.length) < 3 && !maybeRouteDown.isEmpty) {
+                    upOrDown = false
+                    isStatus = false
+                    firstIndex = 0
+                  }
+                }
+                if (firstSD != null && min2SD(0).stationSeqId == 2 && firstSD.stationSeqId == 2) {
+                  isStatus = true
+                }
+              }
+            } else {
+              for (i <- firstIndex to firstIndex + 1) {
+                var indexedSeq = i
+                if (indexedSeq == maybeRouteUp.length-1) {
+                  indexedSeq = maybeRouteUp.length - 2
+                  endStationCount +=1
+                }
+                val ld = LocationUtil.distance(lon, lat, maybeRouteUp(indexedSeq).stationLon, maybeRouteUp(indexedSeq).stationLat)
+                val rd = LocationUtil.distance(lon, lat, maybeRouteUp(indexedSeq + 1).stationLon, maybeRouteUp(indexedSeq + 1).stationLat)
+                if (min2(0) > ld && min2(1) > rd) {
+                  min2(0) = ld
+                  min2(1) = rd
+                  min2SD(0) = maybeRouteUp(indexedSeq)
+                  min2SD(1) = maybeRouteUp(indexedSeq + 1)
+                  firstIndex = min2SD(0).stationSeqId - 1
+                  if (rd < 100.0 && math.abs(min2SD(1).stationSeqId - maybeRouteUp.length) < 1)
+                    isArrival = true
+                  if (firstSD != null && endStationCount>2 && isArrival && !maybeRouteDown.isEmpty) {
+                    upOrDown = false
+                    isStatus = false
+                    firstIndex = 0
+                    endStationCount = 0
+                    isArrival = false
+                  }
+                  if(firstSD != null && min2SD(1).stationSeqId == firstSD.stationSeqId && Math.abs(min2SD(1).stationSeqId - maybeRouteUp.length) < 2){
+                    stopCount += 1
+                    if(stopCount > 15){
+                      isStatus = false
+                      stopCount = 0
+                    }
+                  }
+                }
               }
             }
           } else {
-            for (i <- 0 until maybeRouteDown.length - 1) {
-              val ld = LocationUtil.distance(lon, lat, maybeRouteDown(i).stationLon, maybeRouteDown(i).stationLat)
-              val rd = LocationUtil.distance(lon, lat, maybeRouteDown(i + 1).stationLon, maybeRouteDown(i + 1).stationLat)
-              if (min2(0) > ld && min2(1) > rd) {
-                min2(0) = ld
-                min2(1) = rd
-                min2SD(0) = maybeRouteDown(i)
-                min2SD(1) = maybeRouteDown(i + 1)
-                if (firstSD != null && min2SD(1).stationSeqId < firstSD.stationSeqId && math.abs(min2SD(1).stationSeqId - maybeRouteDown.length) < 3)
-                  upOrDown = true
+            if (!isStatus) {
+              for (i <- 0 until maybeRouteDown.length - 1) {
+                val ld = LocationUtil.distance(lon, lat, maybeRouteDown(i).stationLon, maybeRouteDown(i).stationLat)
+                val rd = LocationUtil.distance(lon, lat, maybeRouteDown(i + 1).stationLon, maybeRouteDown(i + 1).stationLat)
+                if (min2(0) > ld && min2(1) > rd) {
+                  min2(0) = ld
+                  min2(1) = rd
+                  min2SD(0) = maybeRouteDown(i)
+                  min2SD(1) = maybeRouteDown(i + 1)
+                  firstIndex = min2SD(0).stationSeqId - 1
+                  if (firstSD != null && min2SD(1).stationSeqId < firstSD.stationSeqId && math.abs(min2SD(1).stationSeqId - maybeRouteDown.length) < 3) {
+                    upOrDown = true
+                    isStatus = false
+                    firstIndex = 0
+                  }
+                }
+                if (firstSD != null && min2SD(0).stationSeqId == 2 && firstSD.stationSeqId == 2) {
+                  isStatus = true
+                }
+              }
+            } else {
+              for (i <- firstIndex to firstIndex + 1) {
+                var indexedSeq = i
+                if (indexedSeq == maybeRouteDown.length-1) {
+                  indexedSeq = maybeRouteDown.length - 2
+                  endStationCount +=1
+                }
+                val ld = LocationUtil.distance(lon, lat, maybeRouteDown(indexedSeq).stationLon, maybeRouteDown(indexedSeq).stationLat)
+                val rd = LocationUtil.distance(lon, lat, maybeRouteDown(indexedSeq + 1).stationLon, maybeRouteDown(indexedSeq + 1).stationLat)
+                if (min2(0) > ld && min2(1) > rd) {
+                  min2(0) = ld
+                  min2(1) = rd
+                  min2SD(0) = maybeRouteDown(indexedSeq)
+                  min2SD(1) = maybeRouteDown(indexedSeq + 1)
+                  firstIndex = min2SD(0).stationSeqId - 1
+                  if (rd < 100.0 && math.abs(min2SD(1).stationSeqId - maybeRouteDown.length) < 1)
+                    isArrival = true
+                  if (firstSD != null && endStationCount>2 && isArrival) {
+                    upOrDown = true
+                    isStatus = false
+                    firstIndex = 0
+                    endStationCount = 0
+                    isArrival = false
+                  }
+                  if(firstSD != null && min2SD(1).stationSeqId == firstSD.stationSeqId && Math.abs(min2SD(1).stationSeqId - maybeRouteDown.length) < 2){
+                    stopCount += 1
+                    if(stopCount > 15){
+                      isStatus = false
+                      stopCount = 0
+                    }
+                  }
+                }
               }
             }
           }
+          //异常方向点识别
           if (min2.max < Double.MaxValue) {
             var resultDirect = min2SD(0).direct
             if (firstSD != null && firstSD.stationSeqId > min2SD(1).stationSeqId && firstDirect.equals(resultDirect)) {
@@ -365,10 +457,13 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) extends Serializable
       val err2right = error2right(gps)
 
       //多线路筛选与分趟
-      val finalResult = routeConfirm(err2right, stationMap,maybeLine = maybeLineId.size)
+      val finalResult = routeConfirm(err2right, stationMap, maybeLine = maybeLineId.size)
 
       finalResult.iterator
-    }).rdd.saveAsTextFile("D:/testData/公交处/toStation7")
+      //gps.iterator
+    })
+      //.count()
+    .rdd.saveAsTextFile("D:/testData/公交处/toStation9")
 
     busDataCleanUtils.data
   }
@@ -421,6 +516,28 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) extends Serializable
     */
   def toOD(): Unit = {
 
+  }
+
+  def selectPointInfo(gps: Array[String], maybeRoute: Array[StationData]): Array[String] = {
+    gps.filter { row =>
+      var result = false
+      val split = row.split(",")
+      val lon = split(8).toDouble
+      val lat = split(9).toDouble
+      var index = -1
+      for (i <- 0 until maybeRoute.length - 1) {
+        val ld = LocationUtil.distance(lon, lat, maybeRoute(i).stationLon, maybeRoute(i).stationLat)
+        val rd = LocationUtil.distance(lon, lat, maybeRoute(i + 1).stationLon, maybeRoute(i + 1).stationLat)
+        val pd = LocationUtil.distance(maybeRoute(i).stationLon, maybeRoute(i).stationLat, maybeRoute(i + 1).stationLon, maybeRoute(i + 1).stationLat)
+        if (ld + rd < 1.2 * pd) {
+          index = i
+        }
+      }
+      if (index >= 0) {
+        result = true
+      }
+      result
+    }
   }
 
   /**

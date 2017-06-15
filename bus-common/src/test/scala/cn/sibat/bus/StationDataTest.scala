@@ -29,7 +29,7 @@ object StationDataTest {
     }.collect()
     val bStation = spark.sparkContext.broadcast(station)
 
-    val mapStation = station.groupBy(sd => sd.route + "," + sd.direct)
+    //val mapStation = station.groupBy(sd => sd.route + "," + sd.direct)
 
     //查看某辆车
     //    val filter_1 = udf{(carId:String)=>
@@ -94,7 +94,7 @@ object StationDataTest {
     //线路匹配
     val data = spark.read.textFile("D:/testData/公交处/data/2016-12-01/*/*")
     val busDataCleanUtils = new BusDataCleanUtils(data.toDF())
-    val filter = busDataCleanUtils.dataFormat().zeroPoint().filterStatus() //.data.filter(col("carId") === lit("��BCK127")) //��B89863
+    val filter = busDataCleanUtils.dataFormat().zeroPoint().filterStatus() //.data.filter(col("carId") === lit("��B87642")) //��B89863
     val roadInformation = new RoadInformation(filter)
 
     roadInformation.toStation(bStation)
@@ -124,7 +124,7 @@ object StationDataTest {
     //    }.filter(_._2>2).foreach(println)
 
     //��BJ7547效果,局部down��BC0980
-    //spark.read.textFile("D:/testData/公交处/toStation5").rdd.filter(str => str.contains("��B90036")).repartition(1).saveAsTextFile("D:/testData/公交处/B90036ToStation")
+    //spark.read.textFile("D:/testData/公交处/toStation7").rdd.filter(str => str.contains("��B79432")).repartition(1).saveAsTextFile("D:/testData/公交处/B79432ToStation")
 
     //多路线筛选与分趟
     //    val collect = spark.read.textFile("D:/testData/公交处/B90036ToStation1").collect()
