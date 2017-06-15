@@ -1,7 +1,9 @@
-package cn.sibat.metro
+package cn.sibat.metroUtilsTest
 
-import org.apache.spark.sql.functions.{col, _}
+import cn.sibat.metroUtils.TimeUtils
+
 import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.functions.{col, _}
 
 import scala.collection.mutable.ArrayBuffer
 
@@ -85,6 +87,5 @@ object DemoTest {
     val timeDiffUDF = udf((startTime: String, endTime: String) => timeUtils.calTimeDiff(startTime, endTime))
     val ODs_calTimeDiff = ODs_df.withColumn("timeDiff", timeDiffUDF(col("cardTime"), col("outCardTime"))) //将时间差转换为小时
     ODs_calTimeDiff.show()
-
   }
 }
