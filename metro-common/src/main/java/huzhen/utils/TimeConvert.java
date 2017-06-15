@@ -11,28 +11,24 @@ import java.util.Date;
  */
 public class TimeConvert {
 
-    public static long HourToSeconds(String string) throws ParseException {
-        SimpleDateFormat sdf =new SimpleDateFormat("HH:mm:ss");
-        Date date =sdf.parse(string);
-//        long time =date.getTime()/1000;
-        return  date.getTime()/1000;
-    }
+    //字符串格式转日期格式1
     public static Date String2Date(String string) throws ParseException {
         SimpleDateFormat sdf =new SimpleDateFormat("HH:mm:ss");
-        Date date =sdf.parse(string);
-        return date;
-    }
-    public static String Date2String(Date date){
-        SimpleDateFormat sdf =new SimpleDateFormat("HH:mm:ss");
-        return sdf.format(date);
+        return sdf.parse(string);
     }
 
-    //����ת��Ϊʱ����
+    //字符串格式转日期格式2
+    public static Date String2DayDate(String string) throws ParseException {
+        SimpleDateFormat sdf =new SimpleDateFormat("yyyy-MM-dd");
+        return sdf.parse(string);
+    }
+
+    //以秒为单位的时间戳转换为时间格式
     public static String Second2Hour(long timelong){
-        String timeStr =null;
-        int hour =0;
-        int minute =0;
-        int second =0;
+        String timeStr;
+        int hour;
+        int minute;
+        int second;
         int time =(int)timelong;
         if(time<=0){
             return "00:00:00";
@@ -54,7 +50,7 @@ public class TimeConvert {
         return timeStr;
     }
     public static String unitFormat(int i){
-        String retStr =null;
+        String retStr;
         if(i>=0 && i<10){
             retStr ="0"+Integer.toString(i);
         }else
@@ -70,5 +66,4 @@ public class TimeConvert {
         String time =Second2Hour(30075);
         System.out.println(time);
     }
-
 }

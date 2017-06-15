@@ -13,10 +13,12 @@ import java.util.*;
 import static huzhen.code.readForm.MapTimeWalk.getMapWalk;
 import static huzhen.utils.RouteChangeStationUtil.Route2ChangeStation;
 
+import cn.sibat.metroUtils.TimeUtils;
+
 /**
  * Created by hu on 2016/11/3.
- * Update by wing on 2017/6/3
- *  OD反推
+ * Updated by wing on 2017/6/3
+ * OD反推
  */
 public class MainThread {
 
@@ -29,7 +31,7 @@ public class MainThread {
     private static Map<String, String> mapWalk = null;
 
     private static Integer count = 0;//计算路径成功匹配的记录
-
+    //测试
     public static void main(String[] args) throws IOException, ParseException {
 
         //为了计算运行程序所用时间
@@ -44,39 +46,18 @@ public class MainThread {
         lbs = new TimeTableMaker().makeSubwayList(); //地铁各线路班次发车表
         mapWalk = getMapWalk(); //转乘时间
 
-        String path1 = "metro-common/src/main/resources/part-m-after";
-        Scanner scan1 = new Scanner(new FileInputStream(new File(path1)), CodingDetector.checkTxtCode(path1));
+        String path = "metro-common/src/main/resources/testData";
+        Scanner scan = new Scanner(new FileInputStream(new File(path)), CodingDetector.checkTxtCode(path));
 
-        String path3 = "result_20170212_test"; //输出
+        String path3 = "result_20170102"; //输出
         BufferedWriter bw = new BufferedWriter(new FileWriter(path3));
 
-        while (scan1.hasNext()) {
-            String line = scan1.nextLine();
+        while (scan.hasNext()) {
+            String line = scan.nextLine();
             String[] strings = line.split(",");
-
-            long time1 = TimeConvert.HourToSeconds(strings[1].substring(11, 19));//16:53:59
-            long time2 = TimeConvert.HourToSeconds(strings[6].substring(11, 19));
-            double realTime = (time2 - time1) / 60.0;
             String cardNo = strings[0];
 
-            //将OD站点名称转化为序号
-            String string_O2;
-            String string_D2;
-            if (FunctionsUtils.isContainsChinese(strings[3])) {
-
-                //若站点为中文名称
-                string_O2 = NoNameExUtil.Name2Ser(strings[3]);//"黄贝岭"-->string_O:1263037000-->56
-                string_D2 = NoNameExUtil.Name2Ser(strings[8]);//"新秀"-->string_D:1260039000-->57
-            } else {
-                //若站点为编号
-                string_O2 = NoNameExUtil.NO2Ser((strings[3]));//"黄贝岭"-->string_O:1263037000-->56
-                string_D2 = NoNameExUtil.NO2Ser((strings[8]));//"新秀"-->string_D:1260039000-->57
-            }
-
-
-            // ==========================正常输出========================
-            // 读第三张表allPathNew8.txt，输出路径结果
-            String matchedLine = CheckAllPathNew(string_O2, string_D2, realTime, strings);
+            String matchedLine = CheckAllPathNew(strings);
 
             if (matchedLine != null) {
                 count ++;
@@ -85,7 +66,7 @@ public class MainThread {
                 bw.write(result);
                 bw.newLine();
                 bw.flush();
-            } else System.out.println("matched error!");
+            } else System.out.println("match failure!");
         }
         System.out.println("count:" + count);
         System.out.println("time:" + (System.currentTimeMillis() - start) / 1000 / 60.0 + "min"); //程序运行时间
@@ -94,14 +75,10 @@ public class MainThread {
 
     /**
      * OD反推核心算法
-     *
-     * @param string_O2 起点站
-     * @param string_D2 终点站
-     * @param realTime  乘车时间
      * @param strings   OD记录
      * @return matchedLine 匹配的路径
      */
-    private static String CheckAllPathNew(String string_O2, String string_D2, double realTime, String[] strings) throws ParseException {
+    public static String CheckAllPathNew(String[] strings) throws ParseException {
 
         String matchedLine = null;
         Boolean flagIsChange = false;
@@ -110,6 +87,20 @@ public class MainThread {
         Integer twoChangeNo = 0;
         Integer threeChangeNo = 0;
         Integer fourChangeNo = 0;
+
+        Date dayDate = TimeConvert.String2DayDate(strings[strings.length-2]); //天
+
+        long inStationTime = TimeUtils.apply().time2stamp(strings[3], "yyyy-MM-dd HH:mm:ss");
+        long outStationTime = TimeUtils.apply().time2stamp(strings[10], "yyyy-MM-dd HH:mm:ss");
+        long upSubwayTime = inStationTime + IN_STATION;
+        long downSubwayTime = outStationTime - OUT_STATION;
+        double realTime = (outStationTime - inStationTime) / 60.0; //分钟
+
+        //将OD站点名称转化为序号
+        String string_O2;
+        String string_D2;
+        string_O2 = NoNameExUtil.Name2Ser(strings[5]);//"黄贝岭"-->56
+        string_D2 = NoNameExUtil.Name2Ser(strings[12]);//"新秀"-->57
 
         String key = string_O2 + "-" + string_D2;//OD key
         List<String> value = MapAllPath.getAllPath().get(key);//路径list
@@ -128,6 +119,7 @@ public class MainThread {
 
         //若有多条路径，则进入循环判断
         int valueNo;
+        label:
         for (valueNo = 0; valueNo < value.size(); valueNo++) {
 
             String thisLine = value.get(valueNo); //当前路径
@@ -138,18 +130,18 @@ public class MainThread {
             Double time = Double.parseDouble(pathTime[pathTime.length - 1]); //路径花费时间
             String transferTime = pathTime[0]; //换乘次数
 
-            /**
-             * 若OD在同一条线路上
-             *      若有直达的路径
-             *          满足直达条件：输出直达路径
-             *          不满足直达条件：继续下一直达路径循环判断
-             *      没有直达路径
-             *          输出时间最接近的路线
+            /*
+              若OD在同一条线路上
+                   若有直达的路径
+                       满足直达条件：输出直达路径
+                       不满足直达条件：继续下一直达路径循环判断
+                   没有直达路径
+                       输出时间最接近的路线
              */
             String lineNo = linesO2D.get(NoNameExUtil.Ser2NO(string_O2) + NoNameExUtil.Ser2NO(string_D2)); //路线编码
             if (lineNo != null) { //如果OD共线路
                 if (transferTime.equals("0")) { //若有直达路径
-                    Boolean flagIsOneNo = ODPathBack_isOneNo(lineO, strings);
+                    Boolean flagIsOneNo = ODPathBack_isOneNo(lineO, strings, upSubwayTime, downSubwayTime, dayDate);
                     if (flagIsOneNo) { //若该直达路径满足直达条件
                         matchedLine = value.get(valueNo);
                         break;
@@ -160,85 +152,102 @@ public class MainThread {
                 }
             } else {
 
-                /**
-                 * 若OD不在同一条线路上
-                 *  O点在哪一条线上，D点在哪一条线上                     --------处理换乘代码
-                 *  有i次换乘的路径 --遍历所有
-                 *      有满足条件的换乘路径：输出满足i次换乘条件且时间最接近的那条路径
-                 *      没有满足条件的换乘路径：继续循环判断直到最后一条
-                 *                          当前路径为最后一条且没有满足添加的换乘路径：输出时间上最接近的路径
+                /*
+                  若OD不在同一条线路上
+                   O点在哪一条线上，D点在哪一条线上                     --------处理换乘代码
+                   有i次换乘的路径 --遍历所有
+                       有满足条件的换乘路径：输出满足i次换乘条件且时间最接近的那条路径
+                       没有满足条件的换乘路径：继续循环判断直到最后一条
+                                           当前路径为最后一条且没有满足添加的换乘路径：输出时间上最接近的路径
                  */
                 String changeStations = Route2ChangeStation(thisLine.split("#")[0].replaceAll(" ", "-"), lineStation2station);
-                Boolean flagChange = ODPathBackIsChange(stations, changeStations, transferTime, strings);
+                Boolean flagChange = ODPathBackIsChange(stations, changeStations, transferTime, upSubwayTime, downSubwayTime, dayDate);
 
-                if (transferTime.equals("1")) {
-                    oneChangeNo++;
-                    if (flagChange) { //如果都满足一次换乘，找出时间上最接近的路径
-                        if (time <= realTime && time >= closeTime) {
-                            flagIsChange = true;
-                            closeTime = time;
-                            closeLine = thisLine;
-                        }
-                        if (Objects.equals(oneChangeNo, changeTimeList.get(0))) {//若当前的换乘数目路径为最后一条一次换乘路径
+                switch (transferTime) {
+                    case "1":
+                        oneChangeNo++;
+                        if (flagChange) { //如果都满足一次换乘，找出时间上最接近的路径
+                            if (time <= realTime && time >= closeTime) {
+                                flagIsChange = true;
+                                closeTime = time;
+                                closeLine = thisLine;
+                            }
+                            if (Objects.equals(oneChangeNo, changeTimeList.get(0))) {//若当前的换乘数目路径为最后一条一次换乘路径
+                                matchedLine = closeLine;
+                                break label;
+                            }
+                        } else if (!flagIsChange && valueNo == value.size() - 1) {//若仍没有匹配的路径则输入时间上最接近的一条路径
+                            System.out.println("No Matched Line in the path! get the time nearby Line");
+                            matchedLine = CloseTimeLine(value, realTime);
+                            break label;
+                        } else if (flagIsChange && Objects.equals(oneChangeNo, changeTimeList.get(0))) { //若当前路径不能匹配但是有匹配的路径则直接输出最接近的路径
                             matchedLine = closeLine;
-                            break;
+                            break label;
                         }
-                    } else if(!flagIsChange && valueNo == value.size()-1){//若仍没有匹配的路径则输入时间上最接近的一条路径
-                        System.out.println("No Matched Line in the path! get the time nearby Line");
-                        matchedLine = CloseTimeLine(value, realTime);
                         break;
-                    }
-                } else if (transferTime.equals("2")) {
-                    twoChangeNo++;
-                    if (flagChange) {
-                        if (time <= realTime && time >= closeTime) {
-                            flagIsChange = true;
-                            closeTime = time;
-                            closeLine = thisLine;
-                        }
-                        if (Objects.equals(twoChangeNo, changeTimeList.get(1))) {
+                    case "2":
+                        twoChangeNo++;
+                        if (flagChange) {
+                            if (time <= realTime && time >= closeTime) {
+                                flagIsChange = true;
+                                closeTime = time;
+                                closeLine = thisLine;
+                            }
+                            if (Objects.equals(twoChangeNo, changeTimeList.get(1))) {
+                                matchedLine = closeLine;
+                                break label;
+                            }
+                        } else if (!flagIsChange && valueNo == value.size() - 1) {//若仍没有匹配的路径则输入时间上最接近的一条路径
+                            System.out.println("No Matched Line in the path! get the time nearby Line");
+                            matchedLine = CloseTimeLine(value, realTime);
+                            break label;
+                        } else if (flagIsChange && Objects.equals(oneChangeNo, changeTimeList.get(1))) {
                             matchedLine = closeLine;
-                            break;
+                            break label;
                         }
-                    } else if(!flagIsChange && valueNo == value.size()-1){//若仍没有匹配的路径则输入时间上最接近的一条路径
-                        System.out.println("No Matched Line in the path! get the time nearby Line");
-                        matchedLine = CloseTimeLine(value, realTime);
                         break;
-                    }
-                } else if (transferTime.equals("3")) {
-                    threeChangeNo++;
-                    if (flagChange) {
-                        if (time <= realTime && time >= closeTime) {
-                            flagIsChange = true;
-                            closeTime = time;
-                            closeLine = thisLine;
-                        }
-                        if (Objects.equals(threeChangeNo, changeTimeList.get(2))) {
+                    case "3":
+                        threeChangeNo++;
+                        if (flagChange) {
+                            if (time <= realTime && time >= closeTime) {
+                                flagIsChange = true;
+                                closeTime = time;
+                                closeLine = thisLine;
+                            }
+                            if (Objects.equals(threeChangeNo, changeTimeList.get(2))) {
+                                matchedLine = closeLine;
+                                break label;
+                            }
+                        } else if (!flagIsChange && valueNo == value.size() - 1) {//若仍没有匹配的路径则输入时间上最接近的一条路径
+                            System.out.println("No Matched Line in the path! get the time nearby Line");
+                            matchedLine = CloseTimeLine(value, realTime);
+                            break label;
+                        } else if (flagIsChange && Objects.equals(oneChangeNo, changeTimeList.get(2))) {
                             matchedLine = closeLine;
-                            break;
+                            break label;
                         }
-                    } else if(!flagIsChange && valueNo == value.size()-1){//若仍没有匹配的路径则输入时间上最接近的一条路径
-                        System.out.println("No Matched Line in the path! get the time nearby Line");
-                        matchedLine = CloseTimeLine(value, realTime);
                         break;
-                    }
-                } else if (transferTime.equals("4")) {
-                    fourChangeNo++;
-                    if (flagChange) {
-                        if (time <= realTime && time >= closeTime) {
-                            flagIsChange = true;
-                            closeTime = time;
-                            closeLine = thisLine;
-                        }
-                        if (Objects.equals(fourChangeNo, changeTimeList.get(3))) {
+                    case "4":
+                        fourChangeNo++;
+                        if (flagChange) {
+                            if (time <= realTime && time >= closeTime) {
+                                flagIsChange = true;
+                                closeTime = time;
+                                closeLine = thisLine;
+                            }
+                            if (Objects.equals(fourChangeNo, changeTimeList.get(3))) {
+                                matchedLine = closeLine;
+                                break label;
+                            }
+                        } else if (!flagIsChange && valueNo == value.size() - 1) {//若仍没有匹配的路径则输入时间上最接近的一条路径
+                            System.out.println("No Matched Line in the path! get the time nearby Line");
+                            matchedLine = CloseTimeLine(value, realTime);
+                            break label;
+                        } else if (flagIsChange && Objects.equals(oneChangeNo, changeTimeList.get(3))) {
                             matchedLine = closeLine;
-                            break;
+                            break label;
                         }
-                    }  else if(!flagIsChange && valueNo == value.size()-1){//若仍没有匹配的路径则输入时间上最接近的一条路径
-                        System.out.println("No Matched Line in the path! get the time nearby Line");
-                        matchedLine = CloseTimeLine(value, realTime);
                         break;
-                    }
                 }
             }
         }
@@ -260,26 +269,37 @@ public class MainThread {
     }
 
     /**
+     * 转化为最后的结果，每个站点以字符串表示
+     */
+    private static String ConvertOD(String string) {
+
+        String[] strings = string.split("#")[0].split(" ");
+        StringBuilder sb = new StringBuilder();
+        for (String i : strings) {
+            sb.append(NoNameExUtil.Ser2Name(i));
+            sb.append("-");
+        }
+        return sb.toString().substring(0, sb.toString().length()-1);
+    }
+
+    /**
      * 判断是否满足换乘条件
      *
      * @param stations       站点列表
      * @param changeStations 换乘站点
      * @param transferTime   换乘次数
-     * @param strings        OD记录数组
      * @return flag 是否满足换乘条件
      */
-    private static boolean ODPathBackIsChange(String[] stations, String changeStations, String transferTime, String[] strings) throws ParseException {
+    private static boolean ODPathBackIsChange(String[] stations, String changeStations, String transferTime, Long upSubwayTime, Long downSubwayTime, Date dayDate) throws ParseException {
 
         boolean flag = false;
-
-        String date1 = strings[1].substring(11, 19);//O站进站时间
-        String date2 = strings[6].substring(11, 19);//D站出站时间
-        date1 = TimeConvert.Second2Hour(TimeConvert.HourToSeconds(date1) + 8 * 60 * 60 + IN_STATION);//刷卡进站时刻 + 等待时间150秒 = 上车时刻
-        date2 = TimeConvert.Second2Hour(TimeConvert.HourToSeconds(date2) + 8 * 60 * 60 - OUT_STATION);//出站刷卡时刻 - 出站时间90秒  = 下车时刻
 
         String[] odChangeStations = changeStations.split("-");
         String string_O2 = odChangeStations[0]; //起点站序号
         String string_D2 = odChangeStations[1]; //终点站序号
+
+        Date upSubwayDate = TimeUtils.apply().stamp2Date(upSubwayTime);
+        Date downSubwayDate = TimeUtils.apply().stamp2Date(downSubwayTime);
 
         String station2stationFirst = NoNameExUtil.Ser2NO(stations[0]) + NoNameExUtil.Ser2NO(stations[1]);
         String lineNoFirst = lineStation2station.get(station2stationFirst); //上车线路
@@ -291,13 +311,13 @@ public class MainThread {
                 String changeStation = odChangeStations[2]; //换乘站编码
 
                 //到达换乘站的时刻
-                Date timed_change = timed_change(lineNoFirst, string_O2, TimeConvert.String2Date(date1), changeStation);
+                Date timed_change = timed_change(lineNoFirst, string_O2, upSubwayDate, changeStation, dayDate);
                 //从换乘站出发的时刻
-                Date timeo_change = timeo_change(lineNoLast, string_D2, TimeConvert.String2Date(date2), changeStation);
+                Date timeo_change = timeo_change(lineNoLast, string_D2, downSubwayDate, changeStation, dayDate);
                 //该站点最小换乘时间
                 int CHANGE_STATION_SMALL = change_station_walkTime(changeStation, lineNoFirst, lineNoLast);
 
-                if (TimeConvert.HourToSeconds(TimeConvert.Date2String(timeo_change)) - TimeConvert.HourToSeconds(TimeConvert.Date2String(timed_change)) >= CHANGE_STATION_SMALL) {
+                if (TimeUtils.apply().date2Stamp(timeo_change) - TimeUtils.apply().date2Stamp(timed_change) >= CHANGE_STATION_SMALL) {
                     flag = true;
                 }
                 break;
@@ -318,19 +338,19 @@ public class MainThread {
                 String station2stationSecond = changeStation1 + stationNext;
                 String lineNo_Second = lineStation2station.get(station2stationSecond); //在第一个换乘站所乘线路
 
-                Date timed_change_first = timed_change(lineNoFirst, string_O2, TimeConvert.String2Date(date1), changeStation1);
+                Date timed_change_first = timed_change(lineNoFirst, string_O2, upSubwayDate, changeStation1, dayDate);
                 int CHANGE_STATION_SMALL1 = change_station_walkTime(changeStation1, lineNoFirst, lineNo_Second);
                 //由最短换乘时间计算乘客在第一个换乘站的出发时间
-                Date timeo_change_first = TimeConvert.String2Date(TimeConvert.Second2Hour(TimeConvert.HourToSeconds(TimeConvert.Date2String(timed_change_first)) + CHANGE_STATION_SMALL1));
+                Date timeo_change_first = TimeUtils.apply().stamp2Date(TimeUtils.apply().date2Stamp(timed_change_first) + CHANGE_STATION_SMALL1);
 
                 //由第一个换乘站出发的时间---timeo_change_first找到第二个换乘站到达的时间---timed_change_second
-                Date timed_change_last = timed_change(lineNo_Second, changeStation1, timeo_change_first, changeStation2);
+                Date timed_change_last = timed_change(lineNo_Second, changeStation1, timeo_change_first, changeStation2, dayDate);
                 int CHANGE_STATION_SMALL_LAST = change_station_walkTime(changeStation2, lineNo_Second, lineNoLast);
 
                 //由到达终点站的时间反推最后一个换乘点出发的时间---timeo_change_last
-                Date timeo_change_last = timeo_change(lineNoLast, string_D2, TimeConvert.String2Date(date2), changeStation2);
+                Date timeo_change_last = timeo_change(lineNoLast, string_D2, downSubwayDate, changeStation2, dayDate);
 
-                if (TimeConvert.HourToSeconds(TimeConvert.Date2String(timeo_change_last)) - TimeConvert.HourToSeconds(TimeConvert.Date2String(timed_change_last)) >= CHANGE_STATION_SMALL_LAST) {
+                if (TimeUtils.apply().date2Stamp(timeo_change_last) - TimeUtils.apply().date2Stamp(timed_change_last) >= CHANGE_STATION_SMALL_LAST) {
                     flag = true;
                 }
                 break;
@@ -356,19 +376,19 @@ public class MainThread {
                 String station2stationThird = changeStation2 + stationNext2;
                 String lineNo_Third = lineStation2station.get(station2stationThird);
 
-                Date timed_change_first = timed_change(lineNoFirst, string_O2, TimeConvert.String2Date(date1), changeStation1);
+                Date timed_change_first = timed_change(lineNoFirst, string_O2, upSubwayDate, changeStation1, dayDate);
                 int CHANGE_STATION_SMALL1 = change_station_walkTime(changeStation1, lineNoFirst, lineNo_Second);
-                Date timeo_change_first = TimeConvert.String2Date(TimeConvert.Second2Hour(TimeConvert.HourToSeconds(TimeConvert.Date2String(timed_change_first)) + CHANGE_STATION_SMALL1));
+                Date timeo_change_first = TimeUtils.apply().stamp2Date(TimeUtils.apply().date2Stamp(timed_change_first) + CHANGE_STATION_SMALL1);
 
-                Date timed_change_second = timed_change(lineNo_Second, changeStation1, timeo_change_first, changeStation2);
+                Date timed_change_second = timed_change(lineNo_Second, changeStation1, timeo_change_first, changeStation2, dayDate);
                 int CHANGE_STATION_SMALL2 = change_station_walkTime(changeStation2, lineNo_Second, lineNo_Third);
-                Date timeo_change_second = TimeConvert.String2Date(TimeConvert.Second2Hour(TimeConvert.HourToSeconds(TimeConvert.Date2String(timed_change_second)) + CHANGE_STATION_SMALL2));
+                Date timeo_change_second = TimeUtils.apply().stamp2Date(TimeUtils.apply().date2Stamp(timed_change_second)+ CHANGE_STATION_SMALL2);
 
-                Date timed_change_last = timed_change(lineNo_Third, changeStation2, timeo_change_second, changeStation3);
+                Date timed_change_last = timed_change(lineNo_Third, changeStation2, timeo_change_second, changeStation3, dayDate);
                 int CHANGE_STATION_SMALL_LAST = change_station_walkTime(changeStation3, lineNo_Third, lineNoLast);
-                Date timeo_change_last = timeo_change(lineNoLast, string_D2, TimeConvert.String2Date(date2), changeStation3);
+                Date timeo_change_last = timeo_change(lineNoLast, string_D2, downSubwayDate, changeStation3, dayDate);
 
-                if (TimeConvert.HourToSeconds(TimeConvert.Date2String(timeo_change_last)) - TimeConvert.HourToSeconds(TimeConvert.Date2String(timed_change_last)) >= CHANGE_STATION_SMALL_LAST) {
+                if (TimeUtils.apply().date2Stamp(timeo_change_last) - TimeUtils.apply().date2Stamp(timed_change_last) >= CHANGE_STATION_SMALL_LAST) {
                     flag = true;
                 }
                 break;
@@ -401,24 +421,23 @@ public class MainThread {
                 String station2stationForth = changeStation3 + stationNext3;
                 String lineNo_Forth = lineStation2station.get(station2stationForth);
 
-                Date timed_change_first = timed_change(lineNoFirst, string_O2, TimeConvert.String2Date(date1), changeStation1);
+                Date timed_change_first = timed_change(lineNoFirst, string_O2, upSubwayDate, changeStation1, dayDate);
                 int CHANGE_STATION_SMALL1 = change_station_walkTime(changeStation1, lineNoFirst, lineNo_Second);
-                Date timeo_change_first = TimeConvert.String2Date(TimeConvert.Second2Hour(TimeConvert.HourToSeconds(TimeConvert.Date2String(timed_change_first)) + CHANGE_STATION_SMALL1));
+                Date timeo_change_first = TimeUtils.apply().stamp2Date(TimeUtils.apply().date2Stamp(timed_change_first) + CHANGE_STATION_SMALL1);
 
-
-                Date timed_change_second = timed_change(lineNo_Second, changeStation1, timeo_change_first, changeStation2);
+                Date timed_change_second = timed_change(lineNo_Second, changeStation1, timeo_change_first, changeStation2, dayDate);
                 int CHANGE_STATION_SMALL2 = change_station_walkTime(changeStation2, lineNo_Second, lineNo_Third);
-                Date timeo_change_second = TimeConvert.String2Date(TimeConvert.Second2Hour(TimeConvert.HourToSeconds(TimeConvert.Date2String(timed_change_second)) + CHANGE_STATION_SMALL2));
+                Date timeo_change_second = TimeUtils.apply().stamp2Date(TimeUtils.apply().date2Stamp(timed_change_second) + CHANGE_STATION_SMALL2);
 
-                Date timed_change_third = timed_change(lineNo_Third, changeStation2, timeo_change_second, changeStation3);
+                Date timed_change_third = timed_change(lineNo_Third, changeStation2, timeo_change_second, changeStation3, dayDate);
                 int CHANGE_STATION_SMALL3 = change_station_walkTime(changeStation3, lineNo_Third, lineNo_Forth);
-                Date timeo_change_third = TimeConvert.String2Date(TimeConvert.Second2Hour(TimeConvert.HourToSeconds(TimeConvert.Date2String(timed_change_third)) + CHANGE_STATION_SMALL3));
+                Date timeo_change_third = TimeUtils.apply().stamp2Date(TimeUtils.apply().date2Stamp(timed_change_third) + CHANGE_STATION_SMALL3);
 
-                Date timed_change_last = timed_change(lineNo_Forth, changeStation3, timeo_change_third, changeStation4);
+                Date timed_change_last = timed_change(lineNo_Forth, changeStation3, timeo_change_third, changeStation4,dayDate);
                 int CHANGE_STATION_SMALL_LAST = change_station_walkTime(changeStation4, lineNo_Forth, lineNoLast);
-                Date timeo_change_last = timeo_change(lineNoLast, string_D2, TimeConvert.String2Date(date2), changeStation4);
+                Date timeo_change_last = timeo_change(lineNoLast, string_D2, downSubwayDate, changeStation4,dayDate);
 
-                if (TimeConvert.HourToSeconds(TimeConvert.Date2String(timeo_change_last)) - TimeConvert.HourToSeconds(TimeConvert.Date2String(timed_change_last)) >= CHANGE_STATION_SMALL_LAST) {
+                if (TimeUtils.apply().date2Stamp(timeo_change_last) - TimeUtils.apply().date2Stamp(timed_change_last) >= CHANGE_STATION_SMALL_LAST) {
                     flag = true;
                 }
                 break;
@@ -435,46 +454,34 @@ public class MainThread {
      * @return flag
      * @throws ParseException 时间解析异常
      */
-    private static Boolean ODPathBack_isOneNo(String lineO, String[] strings) throws ParseException {
+    private static Boolean ODPathBack_isOneNo(String lineO, String[] strings, Long upSubwayTime, Long downSubwayTime, Date dayDate) throws ParseException {
 
         Boolean flag = false;
-        String date1 = strings[1].substring(11, 19); //O站出发时间2015-09-16T12:09:47.000Z-->08:21:15
-        String date2 = strings[6].substring(11, 19); //D站到达时间2015-09-16T12:28:05.000Z-->09:09:30
 
-        date1 = TimeConvert.Second2Hour(TimeConvert.HourToSeconds(date1) + 8 * 60 * 60 + IN_STATION); //刷卡进站+等待时间150秒
-        date2 = TimeConvert.Second2Hour(TimeConvert.HourToSeconds(date2) + 8 * 60 * 60 - OUT_STATION); //出站刷卡时间90秒
-        String string_O = NoNameExUtil.Name2NO(strings[3]); //O站点编码
-        String string_D = NoNameExUtil.Name2NO(strings[8]); //D站点编码
-        int subwayNo_O = 0;
-        int subwayNo_D = 0;
+        String string_O = NoNameExUtil.Name2NO(strings[6]); //O站点编码
+        String string_D = NoNameExUtil.Name2NO(strings[14]); //D站点编码
+        Integer subwayNo_O = 0;
+        Integer subwayNo_D = 0;
+
+        Date upSubwayDate = TimeUtils.apply().stamp2Date(upSubwayTime);
+        Date downSubwayDate = TimeUtils.apply().stamp2Date(downSubwayTime);
 
         List<BaseSubway> lineTimeTable = lbs.get(lineO); //当前线路上的列车运行时刻表
         for (int subwayNo = 0; subwayNo < lineTimeTable.size(); subwayNo++) {
             for (int stationNo = 0; stationNo < lineTimeTable.get(subwayNo).getStations().size(); stationNo++) {
-                //车辆运行到的当前车站为乘客起点站
                 if (lineTimeTable.get(subwayNo).getStations().get(stationNo).getStation().equals(string_O)) {
-                    if (subwayNo == 0 && lineTimeTable.get(subwayNo).getStations().get(stationNo).getDate().after(TimeConvert.String2Date(date1))) {
-                        subwayNo_O = 0;
-                    } else if (subwayNo != 0 &&
-                            lineTimeTable.get(subwayNo-1).getStations().get(stationNo).getDate().before(TimeConvert.String2Date(date1)) &&
-                            lineTimeTable.get(subwayNo).getStations().get(stationNo).getDate().after(TimeConvert.String2Date(date1))) {
-                        subwayNo_O = subwayNo;//乘客在O站乘坐的列车为当前列车
-                    }
+                    subwayNo_O = matchSubwayNo(lineO, subwayNo, stationNo, upSubwayDate, dayDate);
                 }
-                //车辆运行到的当前车站为乘客终点站
-                if (lineTimeTable.get(subwayNo).getStations().get(stationNo).getStation().equals((string_D))) {
-                    if (subwayNo == 0 && lineTimeTable.get(subwayNo).getStations().get(stationNo).getDate().after(TimeConvert.String2Date(date2))) {
-                        subwayNo_D = 0;
-                    } else if (subwayNo != 0 &&
-                            lineTimeTable.get(subwayNo-1).getStations().get(stationNo).getDate().before(TimeConvert.String2Date(date2)) &&
-                            lineTimeTable.get(subwayNo).getStations().get(stationNo).getDate().after(TimeConvert.String2Date(date2))) {
-                        subwayNo_D = subwayNo;//乘客在D站乘坐的列车为当前列车
-                    }
+                if (lineTimeTable.get(subwayNo).getStations().get(stationNo).getStation().equals(string_D)) {
+                    subwayNo_D = matchSubwayNo(lineO, subwayNo, stationNo, downSubwayDate, dayDate);
                 }
             }
-        }
-        if (subwayNo_O == subwayNo_D) {
-            flag = true;
+            if (subwayNo_O != null && subwayNo_D != null) {
+                if (subwayNo_O.equals(subwayNo_D)) {
+                    flag = true;
+                }
+                break;
+            }
         }
         return flag;
     }
@@ -512,32 +519,24 @@ public class MainThread {
      *
      * @param lineNo_first  乘客在始发站乘车线路编码
      * @param string_O2     始发站
-     * @param date1         在始发站上车时间
+     * @param upStationTime         在始发站上车时间
      * @param changeStation 换乘站
      * @return timed_change_first 到达换乘站的时刻
      */
-    private static Date timed_change(String lineNo_first, String string_O2, Date date1, String changeStation) throws ParseException {
+    private static Date timed_change(String lineNo_first, String string_O2, Date upStationTime, String changeStation, Date dayDate) throws ParseException {
 
-        Integer lineNo_first_no = null; //初始化在O站乘坐的列车号
+        Integer lineNo_first_no = null;
         Date timed_change_first = null;
         List<BaseSubway> lineTimeTable = lbs.get(lineNo_first); //起点站所在路线的列车发车时刻表
-        for (int subwayNo = 0; subwayNo < lineTimeTable.size(); subwayNo++) {
+        for (int subwayNo = 0; subwayNo < lineTimeTable.size() && timed_change_first == null; subwayNo++) {
             for (int stationNo = 0; stationNo < lineTimeTable.get(subwayNo).getStations().size(); stationNo++) {
-                //若当前车站为始发站
                 if (lineTimeTable.get(subwayNo).getStations().get(stationNo).getStation().equals(string_O2)) {
-                    if (subwayNo == 0 && lineTimeTable.get(subwayNo).getStations().get(stationNo).getDate().after(date1)) {
-                        lineNo_first_no = 0;
-                    } else if (subwayNo != 0
-                            && lineTimeTable.get(subwayNo-1).getStations().get(stationNo).getDate().before(date1)
-                            && lineTimeTable.get(subwayNo).getStations().get(stationNo).getDate().after(date1)) {
-                        lineNo_first_no = subwayNo;
-                    }
+                    lineNo_first_no = matchSubwayNo(lineNo_first, subwayNo, stationNo, upStationTime, dayDate);
                 }
-                //若列车匹配成功，乘客乘上列车
                 if (lineNo_first_no != null) {
                     //若乘客刚好到达换乘站点
                     if (lineTimeTable.get(lineNo_first_no).getStations().get(stationNo).getStation().equals(changeStation)) {
-                        timed_change_first = lineTimeTable.get(lineNo_first_no).getStations().get(stationNo).getArrivalDate();
+                        timed_change_first = addDayDate(lineTimeTable.get(lineNo_first_no).getStations().get(stationNo).getArrivalDate(), dayDate);
                         break;
                     }
                 }
@@ -551,51 +550,80 @@ public class MainThread {
      *
      * @param lineNo_last   换乘站的路线
      * @param string_D2     终点站
-     * @param date2         到达终点站的时间
+     * @param downStationTime         到达终点站的时间
      * @param changeStation 换乘站
      * @return timeo_change_first 在换乘站出发的时间
      */
-    private static Date timeo_change(String lineNo_last, String string_D2, Date date2, String changeStation) throws ParseException {
+    private static Date timeo_change(String lineNo_last, String string_D2, Date downStationTime, String changeStation, Date dayDate) throws ParseException {
 
-        Integer lineNo_first_no = null;
+        Integer lineNo_last_no = null;
         Date timeo_change_first = null;
         List<BaseSubway> lineTimeTable = lbs.get(lineNo_last); //终点站所在路线的列车发车时刻表
-        for (int subwayNo = 0; subwayNo < lineTimeTable.size(); subwayNo++) {
-            for (int stationNo = 0; stationNo < lineTimeTable.get(subwayNo).getStations().size(); stationNo++) {
-                //若当前车站为终点站
-                if (lineTimeTable.get(subwayNo).getStations().get(stationNo).getStation().equals(string_D2)) {
-                    if (subwayNo == 0 && lineTimeTable.get(subwayNo).getStations().get(stationNo).getDate().after(date2)) {
-                        lineNo_first_no = 0;
-                    } else if (subwayNo != 0
-                            && lineTimeTable.get(subwayNo - 1).getStations().get(stationNo).getDate().before(date2)
-                            && lineTimeTable.get(subwayNo).getStations().get(stationNo).getDate().after(date2)) {
-                        lineNo_first_no = subwayNo;
-                    }
-                }
-                if (lineNo_first_no != null) {
-                    //若乘客刚好到达换乘站点
-                    if (lineTimeTable.get(lineNo_first_no).getStations().get(stationNo).getStation().equals(changeStation)) {
-                        timeo_change_first = lineTimeTable.get(lineNo_first_no).getStations().get(stationNo).getDate();
+        for (int subwayNo = 0; (subwayNo < lineTimeTable.size() && timeo_change_first == null) || subwayNo == lineTimeTable.size(); subwayNo++) {
+            for (int stationNo = 0; stationNo < lineTimeTable.get(0).getStations().size(); stationNo++) {
+                if (lineNo_last_no != null) {
+                    //由乘客到达终点站乘坐的车次反推回到换乘站点
+                    if (lineTimeTable.get(lineNo_last_no).getStations().get(stationNo).getStation().equals(changeStation)) {
+                        timeo_change_first = addDayDate(lineTimeTable.get(lineNo_last_no).getStations().get(stationNo).getDate(), dayDate);
                         break;
                     }
+                } else if (lineTimeTable.get(subwayNo).getStations().get(stationNo).getStation().equals(string_D2)) {
+                    lineNo_last_no = matchSubwayNo(lineNo_last, subwayNo, stationNo, downStationTime, dayDate);
                 }
+
             }
         }
         return timeo_change_first;
     }
 
     /**
-     * 转化为最后的结果，每个站点以字符串表示
+     * 匹配乘客乘坐的车次号
+     * @param lineNo 路线编码
+     * @param subwayNo 当前车次号
+     * @param stationNo 当前站点号
+     * @param subwayTime 乘客上/下车时间
+     * @param dayDate 列车运营日期
+     * @return trueSubwayNo
      */
-    private static String ConvertOD(String string) {
+    private static Integer matchSubwayNo(String lineNo, Integer subwayNo, Integer stationNo, Date subwayTime, Date dayDate) {
 
-        String[] strings = string.split("#")[0].split(" ");
-        StringBuilder sb = new StringBuilder();
-        for (String i : strings) {
-            sb.append(NoNameExUtil.Ser2NO(i));
-            sb.append("-");
+        Integer trueSubwayNo = null;
+        List<BaseSubway> lineTimeTable = lbs.get(lineNo);
+
+        if (subwayNo == 0 && addDayDate(lineTimeTable.get(subwayNo).getStations().get(stationNo).getDate(), dayDate).after(subwayTime)) { //首班车
+            trueSubwayNo = 0;
+        } else if (subwayNo != 0
+                && addDayDate(lineTimeTable.get(subwayNo - 1).getStations().get(stationNo).getDate(), dayDate).before(subwayTime) //非首末班车
+                && addDayDate(lineTimeTable.get(subwayNo).getStations().get(stationNo).getDate(), dayDate).after(subwayTime)) {
+            if (matchThisSubway(subwayTime, addDayDate(lineTimeTable.get(subwayNo - 1).getStations().get(stationNo).getArrivalDate(), dayDate),
+                    addDayDate(lineTimeTable.get(subwayNo).getStations().get(stationNo).getArrivalDate(), dayDate))) {
+                trueSubwayNo = subwayNo;
+            } else trueSubwayNo = subwayNo - 1;
+        } else if (subwayNo == lineTimeTable.size()-1 && addDayDate(lineTimeTable.get(subwayNo).getStations().get(stationNo).getDate(), dayDate).before(subwayTime)) { //末班车
+            trueSubwayNo = lineTimeTable.size() - 1;
         }
-        return sb.toString().substring(0, sb.toString().length() - 1);
+        return trueSubwayNo;
+    }
+
+    /**
+     * 时间上是否匹配当前车次
+     * @param passengerDate 乘客在站点的上下车时间
+     * @param formerSubwayArrivalDate 上一列车到站时间
+     * @param thisSubwayArrivalDate 当前列车到站时间
+     * @return isMatchThisSubway
+     */
+    private static Boolean matchThisSubway(Date passengerDate, Date formerSubwayArrivalDate, Date thisSubwayArrivalDate) {
+
+        Boolean isMatchThisSubway = false;
+
+        Long diffWithFormerSubway = TimeUtils.apply().date2Stamp(passengerDate) - TimeUtils.apply().date2Stamp(formerSubwayArrivalDate);
+        Long diffWithThisSubway = TimeUtils.apply().date2Stamp(thisSubwayArrivalDate) - TimeUtils.apply().date2Stamp(passengerDate);
+        Long minDiff = Math.min(diffWithFormerSubway, diffWithThisSubway);
+
+        if (minDiff.equals(diffWithThisSubway)) {
+            isMatchThisSubway = true;
+        }
+        return isMatchThisSubway;
     }
 
     /**
@@ -648,5 +676,17 @@ public class MainThread {
             }
         }
         return Arrays.asList(changeOneTimeRoute, changeTwoTimeRoute, changeThreeTimeRoute, changeFourTimeRoute);
+    }
+
+    /**
+     * 给列车时刻表添加日期
+     * @param hourDate 未添加日期的时刻表
+     * @param dayDate 当天日期
+     * @return 当天的时刻表
+     */
+    private static Date addDayDate(Date hourDate, Date dayDate) {
+
+        Long stamp = TimeUtils.apply().date2Stamp(hourDate) + TimeUtils.apply().date2Stamp(dayDate);
+        return TimeUtils.apply().stamp2Date(stamp);
     }
 }

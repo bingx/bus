@@ -195,17 +195,17 @@ public class TimeTableMaker {
         Map<String,String> mapTimeInter =readTimeIntervalForLine();
 
         if (start.before(TimeConvert.String2Date("7:00:00"))){//平峰
-            timeSpan =Integer.parseInt(mapTimeInter.get(lineName).split(",")[3]);
+            timeSpan = Integer.parseInt(mapTimeInter.get(lineName).split(",")[3]);
         }else if (start.before(TimeConvert.String2Date("9:30:00"))){//早高峰
-            timeSpan =Integer.parseInt(mapTimeInter.get(lineName).split(",")[0]);
+            timeSpan = Integer.parseInt(mapTimeInter.get(lineName).split(",")[0]);
         }else if (start.before(TimeConvert.String2Date("16:30:00"))){//平峰
-            timeSpan =Integer.parseInt(mapTimeInter.get(lineName).split(",")[3]);
+            timeSpan = Integer.parseInt(mapTimeInter.get(lineName).split(",")[3]);
         }else if (start.before(TimeConvert.String2Date("20:00:00"))){//晚高峰
-            timeSpan =Integer.parseInt(mapTimeInter.get(lineName).split(",")[1]);
+            timeSpan = Integer.parseInt(mapTimeInter.get(lineName).split(",")[1]);
         }else if (start.before(TimeConvert.String2Date("21:30:00"))){//次高峰
-            timeSpan =Integer.parseInt(mapTimeInter.get(lineName).split(",")[2]);
+            timeSpan = Integer.parseInt(mapTimeInter.get(lineName).split(",")[2]);
         }else if (start.before(TimeConvert.String2Date("23:00:00"))){//平峰
-            timeSpan =Integer.parseInt(mapTimeInter.get(lineName).split(",")[3]);
+            timeSpan = Integer.parseInt(mapTimeInter.get(lineName).split(",")[3]);
         }
         return timeSpan;
     }
