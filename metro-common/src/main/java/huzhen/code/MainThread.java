@@ -22,13 +22,11 @@ import cn.sibat.metroUtils.TimeUtils;
  */
 public class MainThread {
 
-    private static int IN_STATION; //进站加等待时间记150s
-    private static int OUT_STATION; //出站时间90s
-
-    private static Map<String, String> lineStation2station = null;
-    private static Map<String, String> linesO2D = null;
-    private static Map<String, List<BaseSubway>> lbs = null;
-    private static Map<String, String> mapWalk = null;
+    //全局变量
+    private static Map<String, String> lineStation2station = TimeTableReader.getLineStation2station();
+    private static Map<String, String> linesO2D = TimeTableReader.getLinesO2D();
+    private static Map<String, List<BaseSubway>> lbs = TimeTableMaker.getSubwayList();
+    private static Map<String, String> mapWalk = getMapWalk();
 
     private static Integer count = 0;//计算路径成功匹配的记录
     //测试
@@ -36,15 +34,6 @@ public class MainThread {
 
         //为了计算运行程序所用时间
         Long start = System.currentTimeMillis();
-
-        IN_STATION = 150;
-        OUT_STATION = 90;
-
-        //           -------------开始-------------
-        lineStation2station = TimeTableReader.getLineStation2station(); //获取同一路线中相邻站点和所在路线组成的Map
-        linesO2D = TimeTableReader.getLinesO2D(); //获取同一路线中任意两个不相同的站点和所在路线组成的Map
-        lbs = new TimeTableMaker().makeSubwayList(); //地铁各线路班次发车表
-        mapWalk = getMapWalk(); //转乘时间
 
         String path = "metro-common/src/main/resources/testData";
         Scanner scan = new Scanner(new FileInputStream(new File(path)), CodingDetector.checkTxtCode(path));
@@ -88,6 +77,9 @@ public class MainThread {
         Integer threeChangeNo = 0;
         Integer fourChangeNo = 0;
 
+        Integer IN_STATION = 150;
+        Integer OUT_STATION = 90;
+
         Date dayDate = TimeConvert.String2DayDate(strings[strings.length-2]); //天
 
         long inStationTime = TimeUtils.apply().time2stamp(strings[3], "yyyy-MM-dd HH:mm:ss");
@@ -119,7 +111,6 @@ public class MainThread {
 
         //若有多条路径，则进入循环判断
         int valueNo;
-        label:
         for (valueNo = 0; valueNo < value.size(); valueNo++) {
 
             String thisLine = value.get(valueNo); //当前路径
@@ -174,15 +165,15 @@ public class MainThread {
                             }
                             if (Objects.equals(oneChangeNo, changeTimeList.get(0))) {//若当前的换乘数目路径为最后一条一次换乘路径
                                 matchedLine = closeLine;
-                                break label;
+                                break;
                             }
                         } else if (!flagIsChange && valueNo == value.size() - 1) {//若仍没有匹配的路径则输入时间上最接近的一条路径
                             System.out.println("No Matched Line in the path! get the time nearby Line");
                             matchedLine = CloseTimeLine(value, realTime);
-                            break label;
+                            break;
                         } else if (flagIsChange && Objects.equals(oneChangeNo, changeTimeList.get(0))) { //若当前路径不能匹配但是有匹配的路径则直接输出最接近的路径
                             matchedLine = closeLine;
-                            break label;
+                            break;
                         }
                         break;
                     case "2":
@@ -195,15 +186,15 @@ public class MainThread {
                             }
                             if (Objects.equals(twoChangeNo, changeTimeList.get(1))) {
                                 matchedLine = closeLine;
-                                break label;
+                                break;
                             }
                         } else if (!flagIsChange && valueNo == value.size() - 1) {//若仍没有匹配的路径则输入时间上最接近的一条路径
                             System.out.println("No Matched Line in the path! get the time nearby Line");
                             matchedLine = CloseTimeLine(value, realTime);
-                            break label;
+                            break;
                         } else if (flagIsChange && Objects.equals(oneChangeNo, changeTimeList.get(1))) {
                             matchedLine = closeLine;
-                            break label;
+                            break;
                         }
                         break;
                     case "3":
@@ -216,15 +207,15 @@ public class MainThread {
                             }
                             if (Objects.equals(threeChangeNo, changeTimeList.get(2))) {
                                 matchedLine = closeLine;
-                                break label;
+                                break;
                             }
                         } else if (!flagIsChange && valueNo == value.size() - 1) {//若仍没有匹配的路径则输入时间上最接近的一条路径
                             System.out.println("No Matched Line in the path! get the time nearby Line");
                             matchedLine = CloseTimeLine(value, realTime);
-                            break label;
+                            break;
                         } else if (flagIsChange && Objects.equals(oneChangeNo, changeTimeList.get(2))) {
                             matchedLine = closeLine;
-                            break label;
+                            break;
                         }
                         break;
                     case "4":
@@ -237,15 +228,15 @@ public class MainThread {
                             }
                             if (Objects.equals(fourChangeNo, changeTimeList.get(3))) {
                                 matchedLine = closeLine;
-                                break label;
+                                break;
                             }
                         } else if (!flagIsChange && valueNo == value.size() - 1) {//若仍没有匹配的路径则输入时间上最接近的一条路径
                             System.out.println("No Matched Line in the path! get the time nearby Line");
                             matchedLine = CloseTimeLine(value, realTime);
-                            break label;
+                            break;
                         } else if (flagIsChange && Objects.equals(oneChangeNo, changeTimeList.get(3))) {
                             matchedLine = closeLine;
-                            break label;
+                            break;
                         }
                         break;
                 }
@@ -261,7 +252,7 @@ public class MainThread {
      * @param strings 路径
      * @return stringCon 组合结果
      */
-    private static String functionPrintData(String cardNo, String strings) {
+    public static String functionPrintData(String cardNo, String strings) {
 
         String stringCon = ConvertOD(strings);
         stringCon = cardNo + "," + stringCon;

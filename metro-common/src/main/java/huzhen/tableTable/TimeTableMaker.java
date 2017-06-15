@@ -29,7 +29,7 @@ public class TimeTableMaker {
      */
     public static TimeTableMaker ttm;
     static {
-        ttm =new TimeTableMaker();
+        ttm = new TimeTableMaker();
         ttm.ReadProperties();
     }
 
@@ -61,7 +61,7 @@ public class TimeTableMaker {
      *  添加每一条路线列车各站点一天的发车时间
      */
     public Map<String,List<BaseSubway>> makeSubwayList() throws ParseException {
-//        List<List<BaseSubway>> lbs = new ArrayList<List<BaseSubway>>();
+
         Map<String,List<BaseSubway>> lbs =new HashMap<String,List<BaseSubway>>();
         //5号线
         lbs.put("2630", makeOneLineSubway("2630", 327));//这里加的时间在后面没有用上，只是早高峰发车时间间隔（初始化）
@@ -210,6 +210,16 @@ public class TimeTableMaker {
         return timeSpan;
     }
 
+    public static Map<String, List<BaseSubway>> getSubwayList() {
+        Map<String, List<BaseSubway>> subwayList = null;
+        try {
+        subwayList =  new TimeTableMaker().makeSubwayList();
+    }catch (ParseException e) {
+        e.printStackTrace();
+    }
+    return subwayList;
+    }
+
     public static void main(String[] args) {
         /**
          * libs.size():16
@@ -222,8 +232,9 @@ public class TimeTableMaker {
          * 2650:99  --2651:99           7号线
          * 2670:99  --2671:99           9号线
          */
-        try {
-            Map<String, List<BaseSubway>> lbs = new TimeTableMaker().makeSubwayList();
+//        try {
+            //Map<String, List<BaseSubway>> lbs = new TimeTableMaker().makeSubwayList();
+            Map<String, List<BaseSubway>> lbs = getSubwayList();
             //地铁线路数（分方向）
             System.out.println("lbs.size():"+lbs.size());
             //每条线路的班次数
@@ -237,8 +248,8 @@ public class TimeTableMaker {
             System.out.println(lbs.get("2671").size() + "--" + lbs.get("2671").size());
 
             System.out.println("Over!");
-        } catch (ParseException e) {
-            e.printStackTrace();
-        }
+//        } catch (ParseException e) {
+//        e.printStackTrace();
+//    }
     }
 }

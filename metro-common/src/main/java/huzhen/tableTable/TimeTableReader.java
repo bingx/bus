@@ -27,7 +27,7 @@ public class TimeTableReader {
      */
     public static TimeTableReader ttr;
     static {
-        ttr =new TimeTableReader();
+        ttr = new TimeTableReader();
         try {
             ttr.ReadLineTimeTable();
             ReadLineByStation2Station();
@@ -77,7 +77,7 @@ public class TimeTableReader {
      * 读取时刻表
      * @return mSD 由站点编号和发车时刻组成的数组列表
      */
-    public List<TimeTableStation> readTimeTable(String LineName){
+    private List<TimeTableStation> readTimeTable(String LineName){
         String path = LineName;
         List<TimeTableStation> mSD = new ArrayList<TimeTableStation>();
         SimpleDateFormat format = new SimpleDateFormat("HH:mm:ss");
@@ -111,7 +111,7 @@ public class TimeTableReader {
      * 将任意两个相邻的站点存放在lineStation2station中
      * 将任意两个不相同的站点存放在linesO2D中
      */
-    public static void ReadLineByStation2Station(){
+    private static void ReadLineByStation2Station(){
         String lineName;
         List<TimeTableStation> list;
         //不需要处理的小线

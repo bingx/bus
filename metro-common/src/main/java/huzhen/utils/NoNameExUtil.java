@@ -95,8 +95,9 @@ public class NoNameExUtil {
         System.out.println(Name2NO("红山"));
         System.out.println(NO2Name("1262015000"));
         System.out.println(Name2Ser("机场东"));
-        System.out.println(Ser2Name("89"));
-        System.out.println(Ser2NO("167"));
+        System.out.println(Ser2Name("50"));
+        System.out.println(Ser2NO("50"));
+        System.out.println(Ser2NO("60"));
         System.out.println(NO2Ser("1262015000"));
     }
 }
