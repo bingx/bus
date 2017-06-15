@@ -8,7 +8,7 @@ import org.apache.spark.sql.functions._
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
-case class TestBus(id: String, num: String, or: String)
+case class TestBus(id: String, num: String, or: String,arr:Array[Int])
 
 /**
   * hh
@@ -70,7 +70,7 @@ object TestBus {
     //    }
     //    println(max2.mkString(","))
 
-//    val spark = SparkSession.builder().config("spark.sql.warehouse.dir", "file:///c:/path/to/my").appName("T").master("local[*]").getOrCreate()
+    val spark = SparkSession.builder().config("spark.sql.warehouse.dir", "file:///c:/path/to/my").appName("T").master("local[*]").getOrCreate()
     //    val rdd = spark.sparkContext.parallelize(0 to 100)
     //    rdd.saveAsTextFile("D://testData/test/textFile")
     //    rdd.saveAsObjectFile("D://testData/test/objectFile")
@@ -86,13 +86,13 @@ object TestBus {
     //    df.write.csv("D://testData/test/csv")
     //df.write.saveAsTable("table")
     //    spark.read.table("table").show()
-//    import spark.implicits._
-//    val data = spark.read.textFile("D:/testData/公交处/data/2016-12-01/*/*")
-//    val filter = data.filter(s=>s.split(",").length > 16)
-//    println(filter.map(_.split(",")(3)).distinct().count())
-//    filter.rdd.sortBy(s=>s.split(",")(3)).repartition(1).saveAsTextFile("D:/testData/公交处/arrivalTime")
-    val v1 = "2016-12-01T16:35:39.000Z,01,��BX4675,��BX4675,B6624,B6624,2,0,113.941452,22.754307,0.000000,2016-12-01T16:35:32.000Z,33.000000,314.000000,33.000000,0.000000,G_GM0798,2016-12-01T16:35:32.000Z,"
-    val v2 = "2016-12-01T15:05:11.000Z,01,��BX4675,��BX4675,B6624,B6624,2,0,113.936195,22.758846,0.000000,2016-12-01T15:05:05.000Z,29.000000,313.000000,29.000000,0.000000,,2016-12-01T15:05:05.000Z,G_GM0195"
-    println(v1.split(",")(19)+"\n"+v2.split(",")(16).isEmpty)
+    import spark.implicits._
+    //    val data = spark.read.textFile("D:/testData/公交处/data/2016-12-01/*/*")
+    //    val filter = data.filter(s=>s.split(",").length > 16 && s.split(",")(3).equals("��B79432"))
+    //    filter.rdd.sortBy(s=>s.split(",")(11)).repartition(1).saveAsTextFile("D:/testData/公交处/arrivalTime")
+    var array = new ArrayBuffer[Int]()
+    array.++=(Seq(1,2,3,4))
+    array = array.tail.+=(5)
+    println(array.mkString(","))
   }
 }

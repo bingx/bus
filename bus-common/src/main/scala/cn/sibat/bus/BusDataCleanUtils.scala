@@ -19,7 +19,7 @@ class BusDataCleanUtils(val data: DataFrame) extends Serializable{
 
   /**
     * 对公交车数据进行格式化,并转化成对应数据格式
-    * 结果列名"sysTime", "dataType", "term", "carId", "route", "subRoute", "company", "status", "lon"
+    * 结果列名"sysTime", "dataType", "term", "carId", "line", "subLine", "company", "status", "lon"
     * , "lat", "high", "upTime", "speed", "direct", "carSpeed", "mileage"
     *
     * @return busDataCleanUtils
@@ -27,7 +27,7 @@ class BusDataCleanUtils(val data: DataFrame) extends Serializable{
   def dataFormat(): BusDataCleanUtils = {
     var colType = Array("String")
     colType = colType ++ ("String," * 7).split(",") ++ ("Double," * 3).split(",") ++ "String".split(",") ++ ("Double," * 4).split(",")
-    val cols = Array("sysTime", "dataType", "term", "carId", "route", "subRoute", "company", "status", "lon"
+    val cols = Array("sysTime", "dataType", "term", "carId", "line", "subLine", "company", "status", "lon"
       , "lat", "high", "upTime", "speed", "direct", "carSpeed", "mileage")
     newUtils(DataFrameUtils.apply.col2moreCol(data.toDF(), "value", colType, cols: _*))
   }
@@ -70,7 +70,7 @@ class BusDataCleanUtils(val data: DataFrame) extends Serializable{
           }
           val bd = BusData(row.getString(row.fieldIndex("sysTime")), row.getString(row.fieldIndex("dataType"))
             , row.getString(row.fieldIndex("term")), row.getString(row.fieldIndex("carId"))
-            , row.getString(row.fieldIndex("route")), row.getString(row.fieldIndex("subRoute"))
+            , row.getString(row.fieldIndex("line")), row.getString(row.fieldIndex("subLine"))
             , row.getString(row.fieldIndex("company")), row.getString(row.fieldIndex("status"))
             , row.getDouble(row.fieldIndex("lon")), row.getDouble(row.fieldIndex("lat"))
             , row.getDouble(row.fieldIndex("high")), row.getString(row.fieldIndex("upTime"))
@@ -153,7 +153,7 @@ class BusDataCleanUtils(val data: DataFrame) extends Serializable{
       Tuple18.apply(split(0), split(1), split(2), split(3), split(4), split(5)
         , split(6), split(7), split(8).toDouble, split(9).toDouble, split(10).toDouble, split(11)
         , split(12).toDouble, split(13).toDouble, split(14).toDouble, split(15).toDouble, split(16).toLong, split(17).toDouble)
-    }).toDF("sysTime", "dataType", "term", "carId", "route", "subRoute", "company", "status", "lon"
+    }).toDF("sysTime", "dataType", "term", "carId", "line", "subLine", "company", "status", "lon"
       , "lat", "high", "upTime", "speed", "direct", "carSpeed", "mileage", "interval", "movement")
     newUtils(target)
   }
@@ -192,5 +192,5 @@ object BusDataCleanUtils {
 
 }
 
-case class BusData(sysTime: String, dataType: String, term: String, carId: String, route: String, subRoute: String, company: String,
+case class BusData(sysTime: String, dataType: String, term: String, carId: String, line: String, subLine: String, company: String,
                    status: String, lon: Double, lat: Double, high: Double, upTime: String, speed: Double, direct: Double, carSpeed: Double, mileage: Double)

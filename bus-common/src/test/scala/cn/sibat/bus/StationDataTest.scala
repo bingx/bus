@@ -24,11 +24,12 @@ object StationDataTest {
     import spark.implicits._
     val station = spark.read.textFile("D:/testData/公交处/lineInfo.csv").map { str =>
       val Array(route, direct, stationId, stationName, stationSeqId, stationLat, stationLon) = str.split(",")
-      new StationData(route, direct, stationId, stationName, stationSeqId.toInt, stationLon.toDouble, stationLat.toDouble)
+      val Array(lat, lon) = LocationUtil.gcj02_To_84(stationLat.toDouble, stationLon.toDouble).split(",")
+      new StationData(route, direct, stationId, stationName, stationSeqId.toInt, lon.toDouble, lat.toDouble)
     }.collect()
-    val bStation = spark.sparkContext.broadcast(station)
 
-    val mapStation = station.groupBy(sd => sd.route + "," + sd.direct)
+    val mapStation = station.groupBy(sd => sd.line + "," + sd.direct)
+    val bStation = spark.sparkContext.broadcast(mapStation)
 
     //查看某辆车
     //    val filter_1 = udf{(carId:String)=>
@@ -91,12 +92,12 @@ object StationDataTest {
 
 
     //线路匹配
-    //    val data = spark.read.textFile("D:/testData/公交处/data/2016-12-01/*/*")
-    //    val busDataCleanUtils = new BusDataCleanUtils(data.toDF())
-    //    val filter = busDataCleanUtils.dataFormat().zeroPoint().filterStatus() //.data.filter(col("carId") === lit("��BCK127")) //��B89863
-    //    val roadInformation = new RoadInformation(filter)
-    //
-    //    roadInformation.toStation(bStation)
+//    val data = spark.read.textFile("D:/testData/公交处/data/2016-12-01/*/*")
+//    val busDataCleanUtils = new BusDataCleanUtils(data.toDF())
+//    val filter = busDataCleanUtils.dataFormat().zeroPoint().filterStatus() //.data.filter(col("carId") === lit("��BCK127")) //��B89863
+//    val roadInformation = new RoadInformation(filter)
+//
+//    roadInformation.toStation(bStation)
 
     //查看某条线路
     //    val time2date = udf { (upTime: String) =>
@@ -249,10 +250,64 @@ object StationDataTest {
     //    val b = spark.sparkContext.broadcast(carId1)
     //    carId0.filter(str=> !b.value.contains(str.split(",")(3))).rdd.saveAsTextFile("D:/testData/公交处/noTrip")
 
+    //到站验证
+    //    val toStation = spark.read.text("D:/testData/公交处/��B79432")
+    //    val busArrival = spark.read.textFile("D:/testData/公交处/arrivalTime").map(s=>s.split(",")(11)).rdd.collect()
+    //    val ba = spark.sparkContext.broadcast(busArrival)
+    //    toStation.map(row =>{
+    //      val value = row.getString(row.fieldIndex("value")).split(",")
+    //      val lon = value(8).toDouble
+    //      val lat = value(9).toDouble
+    //      val upTime = value(11)
+    //      val line = value(16)
+    //      val direct = value(17)
+    //      val stations = bStation.value.getOrElse(line+","+direct,Array())
+    //      var min2 = Double.MaxValue
+    //      var stationIndex = 0
+    //      stations.foreach(sd =>{
+    //        val dis = LocationUtil.distance(lon,lat,sd.stationLon,sd.stationLat)
+    //        if (min2 > dis) {
+    //          min2 = dis
+    //          stationIndex = sd.stationSeqId
+    //        }
+    //      })
+    //      var str = "0"
+    //      if (ba.value.contains(upTime))
+    //        str = "1"
+    //      value.mkString(",")+","+stationIndex+","+min2+","+str
+    //    }).write.text("D:/testData/公交处/busB79432")
+        spark.sparkContext.parallelize("114.067284,22.527428;\n114.066071,22.525105;\n114.065865,22.524696;\n114.06752,22.523701;\n114.067825,22.523605;".split("\n"))
+          .foreach(s => {
+            val lon = s.split(",")(0).toDouble
+            val lat = s.split(",")(1).replace(";", "").toDouble
+            val stationData = bStation.value.getOrElse("03570,up", Array())
+            var min1 = Double.MaxValue
+            var arrSD = new StationData("1","1","1","1",1,0.1,0.1)
+    //        val ll_84 = LocationUtil.gps84_To_Gcj02(lat, lon)
+    //        val lon_84 = ll_84.split(",")(1).toDouble
+    //        val lat_84 = ll_84.split(",")(0).toDouble
+            //println(lon_84+","+lat_84+";")
+            //println(lon+","+lat+";")
+            stationData.foreach(sd => {
+              val ll_84 = LocationUtil.gcj02_To_84(sd.stationLat, sd.stationLon)
+              val lon_84 = ll_84.split(",")(1).toDouble
+              val lat_84 = ll_84.split(",")(0).toDouble
+              val dis = LocationUtil.distance(lon, lat, lon_84, lat_84)
+              if (min1 > dis) {
+                min1 = dis
+                arrSD = sd
+              }
+            })
+            println(arrSD)
+
+            //114.256403,22.691429
+            //println("station3:" + LocationUtil.distance(114.264102, 22.686999, lon_84, lat_84))
+          })
+
     //用车辆运动模型推测公交到站时间，原来是筛选离站点50进行识别的，但是会有站点识别不到的情况
-    val collect = spark.read.textFile("D:/testData/公交处/B90036ToRight1").collect()
-    collect.foreach { s =>
-    }
+    //    val collect = spark.read.textFile("D:/testData/公交处/B90036ToRight1").collect()
+    //    collect.foreach { s =>
+    //    }
   }
 
   def toArrTrip(split: Array[String]): Array[TripTest] = {

@@ -46,8 +46,14 @@ object BaoAnDemo {
 //    val id = row.getString(row.fieldIndex("LaiYuanID"))
 //    println(row)
 //    flowinst.select("ZhengZhiShiChang","ABCType","time","street","state")show(10)
-    shixiangcanshu.show(10)
-    println(P_dingdianxuncha.count())
+    flowinst.createOrReplaceTempView("flowinst")
+    //spark.sql("select gridno,count(0) as total from flowinst where abctype='A' group by gridno order by total desc limit 20").show(100)
+    val population = T_wanggeshuju.select("gongzuowanggehao","hujirenkou","liudongrenkou","zuzhurenkou")
+    //flowinst.select("gridno","service","abctype").filter(col("abctype")==="A").join(population,flowinst.col("gridno") === population.col("gongzuowanggehao")).repartition(1).rdd.saveAsTextFile("D:/testData/宝安区/flow_gridno") //.createOrReplaceTempView("flow_gridno")
+
+    //spark.sql("select gridno,hujirenkou,liudongrenkou,zuzhurenkou,service,count(0) as total,hujirenkou+liudongrenkou+zuzhurenkou as population from flow_gridno where abctype='A' group by gridno,hujirenkou,liudongrenkou,zuzhurenkou,service order by total desc limit 100").show()
+    //val sql = "select gridno,service,population,total from (select gridno,service,population,total,row_number() OVER (PARTITION BY service ORDER BY total DESC) rank from (select gridno,hujirenkou,liudongrenkou,zuzhurenkou,service,count(0) as total,hujirenkou+liudongrenkou+zuzhurenkou as population from flow_gridno where abctype='A' group by gridno,hujirenkou,liudongrenkou,zuzhurenkou,service) T) T2 where rank<=20"
+    //spark.sql(sql).show(100)
     println(flowinst.count())
   }
 
