@@ -50,10 +50,10 @@ case class BusCardData(rId: String, lId: String, term: String, tradeType: String
   * @param firstStation   前一站点
   * @param arrivalStation 到达站点
   * @param stationSeqId   站点序号
-  * @param buses          班次号
+  * @param tripId         班次号
   */
 case class BusArrivalData(raw: String, carId: String, arrivalTime: String, leaveTime: String, nextStation: String
-                          , firstStation: String, arrivalStation: String, stationSeqId: Long, buses: String)
+                          , firstStation: String, arrivalStation: String, stationSeqId: Long, tripId: String)
 
 case class Trip(carId: String, route: String, direct: String, firstSeqIndex: Int, ld: Double, nextSeqIndex: Int, rd: Double, tripId: Int) {
   override def toString: String = route + "," + direct + "," + firstSeqIndex + "," + ld + "," + nextSeqIndex + "," + rd
@@ -81,7 +81,7 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) extends Serializable
     * @param stationMap 站点静态数据map
     * @return
     */
-  def routeConfirm(gps: Array[String], stationMap: Map[String, Array[StationData]], oldLength: Int = 16, maybeLine: Int): Array[String] = {
+  private def routeConfirm(gps: Array[String], stationMap: Map[String, Array[StationData]], oldLength: Int = 16, maybeLine: Int): Array[String] = {
     var count = 0
     var start = 0
     val firstDirect = new ArrayBuffer[String]()
@@ -150,7 +150,7 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) extends Serializable
       lonLat += split(8) + "," + split(9)
       count += 1
     }
-    resultArr.toArray
+    toBusArrivalData(resultArr.toArray,stationMap)
   }
 
   /**
@@ -162,7 +162,7 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) extends Serializable
     * @param gps 推算后的gps
     * @return 纠正后的gps数据
     */
-  def error2right(gps: Array[String]): Array[String] = {
+  private def error2right(gps: Array[String]): Array[String] = {
     val firstTrip = new ArrayBuffer[Trip]()
     var updateStart = 0
     var updateEnd = 0
@@ -216,7 +216,7 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) extends Serializable
     * @param oldLength 默认16
     * @return
     */
-  def toArrTrip(split: Array[String], oldLength: Int = 16): Array[Trip] = {
+  private def toArrTrip(split: Array[String], oldLength: Int = 16): Array[Trip] = {
     val carId = split(3)
     val struct = 6 //结构体默认长度
     val length = (split.length - oldLength) / struct
@@ -306,12 +306,12 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) extends Serializable
         }
         //方向匹配
         var firstSD: StationData = null //前一记录的站点信息
-        var firstDirect = "up" //初始化方向
-        var firstIndex = 0 //前一记录站点顺序
-        var isStatus = false //是否进入运营状态
-        var endStationCount = 0 //到达总站后所必须保留的记录数
-        var isArrival = false //是否到达终点站
-        var stopCount = 0 //停止阈值
+      var firstDirect = "up" //初始化方向
+      var firstIndex = 0 //前一记录站点顺序
+      var isStatus = false //是否进入运营状态
+      var endStationCount = 0 //到达总站后所必须保留的记录数
+      var isArrival = false //是否到达终点站
+      var stopCount = 0 //停止阈值
 
         gps = gps.map { row =>
           var result = row
@@ -345,9 +345,9 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) extends Serializable
             } else {
               for (i <- firstIndex to firstIndex + 1) {
                 var indexedSeq = i
-                if (indexedSeq == maybeRouteUp.length-1) {
+                if (indexedSeq == maybeRouteUp.length - 1) {
                   indexedSeq = maybeRouteUp.length - 2
-                  endStationCount +=1
+                  endStationCount += 1
                 }
                 val ld = LocationUtil.distance(lon, lat, maybeRouteUp(indexedSeq).stationLon, maybeRouteUp(indexedSeq).stationLat)
                 val rd = LocationUtil.distance(lon, lat, maybeRouteUp(indexedSeq + 1).stationLon, maybeRouteUp(indexedSeq + 1).stationLat)
@@ -359,16 +359,16 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) extends Serializable
                   firstIndex = min2SD(0).stationSeqId - 1
                   if (rd < 100.0 && math.abs(min2SD(1).stationSeqId - maybeRouteUp.length) < 1)
                     isArrival = true
-                  if (firstSD != null && endStationCount>2 && isArrival && !maybeRouteDown.isEmpty) {
+                  if (firstSD != null && endStationCount > 2 && isArrival && !maybeRouteDown.isEmpty) {
                     upOrDown = false
                     isStatus = false
                     firstIndex = 0
                     endStationCount = 0
                     isArrival = false
                   }
-                  if(firstSD != null && min2SD(1).stationSeqId == firstSD.stationSeqId && Math.abs(min2SD(1).stationSeqId - maybeRouteUp.length) < 2){
+                  if (firstSD != null && min2SD(1).stationSeqId == firstSD.stationSeqId && Math.abs(min2SD(1).stationSeqId - maybeRouteUp.length) < 2) {
                     stopCount += 1
-                    if(stopCount > 15){
+                    if (stopCount > 15) {
                       isStatus = false
                       stopCount = 0
                     }
@@ -400,9 +400,9 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) extends Serializable
             } else {
               for (i <- firstIndex to firstIndex + 1) {
                 var indexedSeq = i
-                if (indexedSeq == maybeRouteDown.length-1) {
+                if (indexedSeq == maybeRouteDown.length - 1) {
                   indexedSeq = maybeRouteDown.length - 2
-                  endStationCount +=1
+                  endStationCount += 1
                 }
                 val ld = LocationUtil.distance(lon, lat, maybeRouteDown(indexedSeq).stationLon, maybeRouteDown(indexedSeq).stationLat)
                 val rd = LocationUtil.distance(lon, lat, maybeRouteDown(indexedSeq + 1).stationLon, maybeRouteDown(indexedSeq + 1).stationLat)
@@ -414,16 +414,16 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) extends Serializable
                   firstIndex = min2SD(0).stationSeqId - 1
                   if (rd < 100.0 && math.abs(min2SD(1).stationSeqId - maybeRouteDown.length) < 1)
                     isArrival = true
-                  if (firstSD != null && endStationCount>2 && isArrival) {
+                  if (firstSD != null && endStationCount > 2 && isArrival) {
                     upOrDown = true
                     isStatus = false
                     firstIndex = 0
                     endStationCount = 0
                     isArrival = false
                   }
-                  if(firstSD != null && min2SD(1).stationSeqId == firstSD.stationSeqId && Math.abs(min2SD(1).stationSeqId - maybeRouteDown.length) < 2){
+                  if (firstSD != null && min2SD(1).stationSeqId == firstSD.stationSeqId && Math.abs(min2SD(1).stationSeqId - maybeRouteDown.length) < 2) {
                     stopCount += 1
-                    if(stopCount > 15){
+                    if (stopCount > 15) {
                       isStatus = false
                       stopCount = 0
                     }
@@ -463,9 +463,59 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) extends Serializable
       //gps.iterator
     })
       //.count()
-    .rdd.saveAsTextFile("D:/testData/公交处/toStation9")
+      .rdd.saveAsTextFile("D:/testData/公交处/toBusArrival")
 
     busDataCleanUtils.data
+  }
+
+  /**
+    * 把分趟后的数据转成公交到站数据
+    *
+    * @param toStation 分趟后的df
+    * @return
+    */
+  def toBusArrivalData(toStation: Array[String],stationMap: Map[String, Array[StationData]]): Array[String] = {
+    toStation.groupBy { s =>
+      val split = s.split(",")
+      split(split.length - 1)
+    }.flatMap { s =>
+      val list = s._2.sortBy(s=>s.split(",")(11))
+      val map = new mutable.HashMap[String,Int]()
+      list.foreach{s=>
+        val key = s.split(",")(17)
+        map.put(key,map.getOrElse(key,0)+1)
+      }
+      val up = map.getOrElse("up",0)
+      val down = map.getOrElse("down",0)
+      var direct = "up"
+      if (up < down)
+        direct = "down"
+      val result = new ArrayBuffer[String]()
+      for(i<- 0 until s._2.length-1){
+        val first = list(i).split(",")
+        val next = list(i+1).split(",")
+        val firstLon = first(8).toDouble
+        val firstLat = first(9).toDouble
+        val nextLon = next(8).toDouble
+        val nextLat = next(9).toDouble
+        val stationArray = stationMap.getOrElse(first(16)+","+direct,Array())
+        var minDiff = Double.MaxValue
+        var standLocation = 0
+        stationArray.foreach { sd =>
+          val ld = LocationUtil.distance(firstLon, firstLat,sd.stationLon,sd.stationLat)
+          val rd = LocationUtil.distance(nextLon, nextLat,sd.stationLon,sd.stationLat)
+          val pd = LocationUtil.distance(firstLon,firstLat,nextLon,nextLat)
+          val diff = ld+rd-pd
+          if (diff < minDiff){
+            minDiff = diff
+            standLocation = sd.stationSeqId
+          }
+        }
+        result += list(i)+","+standLocation+","+minDiff
+      }
+      result += list(s._2.length-1)+",0,0"
+      result
+    }.toArray
   }
 
   /**
@@ -518,6 +568,13 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) extends Serializable
 
   }
 
+  /**
+    * gps的三角形原理定位位置，过滤无法定位点
+    *
+    * @param gps        gps
+    * @param maybeRoute 线路信息表
+    * @return
+    */
   def selectPointInfo(gps: Array[String], maybeRoute: Array[StationData]): Array[String] = {
     gps.filter { row =>
       var result = false

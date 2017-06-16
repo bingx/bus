@@ -7,6 +7,7 @@ import org.apache.spark.sql.functions._
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
+import scala.util.Random
 
 case class TestBus(id: String, num: String, or: String)
 
@@ -70,7 +71,7 @@ object TestBus {
     //    }
     //    println(max2.mkString(","))
 
-//    val spark = SparkSession.builder().config("spark.sql.warehouse.dir", "file:///c:/path/to/my").appName("T").master("local[*]").getOrCreate()
+    //    val spark = SparkSession.builder().config("spark.sql.warehouse.dir", "file:///c:/path/to/my").appName("T").master("local[*]").getOrCreate()
     //    val rdd = spark.sparkContext.parallelize(0 to 100)
     //    rdd.saveAsTextFile("D://testData/test/textFile")
     //    rdd.saveAsObjectFile("D://testData/test/objectFile")
@@ -86,10 +87,10 @@ object TestBus {
     //    df.write.csv("D://testData/test/csv")
     //df.write.saveAsTable("table")
     //    spark.read.table("table").show()
-//    import spark.implicits._
-//    val data = spark.read.textFile("D:/testData/公交处/data/2016-12-01/*/*")
-//    val filter = data.filter(s=>s.split(",").length > 16)
-//    println(filter.map(_.split(",")(3)).distinct().count())
-//    filter.rdd.sortBy(s=>s.split(",")(3)).repartition(1).saveAsTextFile("D:/testData/公交处/arrivalTime")
+    //    import spark.implicits._
+    //    val data = spark.read.textFile("D:/testData/公交处/data/2016-12-01/*/*")
+    //    val filter = data.filter(s=>s.split(",").length > 16)
+    //    println(filter.map(_.split(",")(3)).distinct().count())
+    //    filter.rdd.sortBy(s=>s.split(",")(3)).repartition(1).saveAsTextFile("D:/testData/公交处/arrivalTime")
   }
 }
