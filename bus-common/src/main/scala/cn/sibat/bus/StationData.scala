@@ -470,6 +470,13 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) extends Serializable
 
   /**
     * 把分趟后的数据转成公交到站数据
+    * 原理：
+    * ------A-------B-------C----- gps点
+    * --a-----b-------c------d---- 公交站点
+    * 首先取gpsA点与B，计算AB与各站点的距离ld与rd，AB的距离pd
+    * diff = ld+rd-pd，取最小的diff，作为站点的到站gps点
+    * 因为diff最小说明两gps点刚好在站点的左右两边。
+    * 所以AB两gps点就是线路站点b的到站点，BC作为c的到站gpd点。
     *
     * @param toStation 分趟后的df
     * @return
