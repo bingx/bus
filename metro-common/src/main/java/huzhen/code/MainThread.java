@@ -21,7 +21,6 @@ import cn.sibat.metroUtils.TimeUtils;
  * OD反推
  */
 public class MainThread {
-
     //全局变量
     private static Map<String, String> lineStation2station = TimeTableReader.getLineStation2station();
     private static Map<String, String> linesO2D = TimeTableReader.getLinesO2D();
@@ -151,94 +150,102 @@ public class MainThread {
                        没有满足条件的换乘路径：继续循环判断直到最后一条
                                            当前路径为最后一条且没有满足添加的换乘路径：输出时间上最接近的路径
                  */
+                Boolean flagChange;
                 String changeStations = Route2ChangeStation(thisLine.split("#")[0].replaceAll(" ", "-"), lineStation2station);
-                Boolean flagChange = ODPathBackIsChange(stations, changeStations, transferTime, upSubwayTime, downSubwayTime, dayDate);
+                 try {
+                     flagChange = ODPathBackIsChange(stations, changeStations, transferTime, upSubwayTime, downSubwayTime, dayDate);
+                 }
+                 catch (NullPointerException e) {
+                     System.out.println("亲爱哒，你的程序出Bug啦! OD记录的卡号为：" + strings[0]);
+                     break;
+                 }
 
-                switch (transferTime) {
-                    case "1":
-                        oneChangeNo++;
-                        if (flagChange) { //如果都满足一次换乘，找出时间上最接近的路径
-                            if (time <= realTime && time >= closeTime) {
-                                flagIsChange = true;
-                                closeTime = time;
-                                closeLine = thisLine;
-                            }
-                            if (Objects.equals(oneChangeNo, changeTimeList.get(0))) {//若当前的换乘数目路径为最后一条一次换乘路径
-                                matchedLine = closeLine;
-                                break;
-                            }
-                        } else if (!flagIsChange && valueNo == value.size() - 1) {//若仍没有匹配的路径则输入时间上最接近的一条路径
-                            System.out.println("No Matched Line in the path! get the time nearby Line");
-                            matchedLine = CloseTimeLine(value, realTime);
-                            break;
-                        } else if (flagIsChange && Objects.equals(oneChangeNo, changeTimeList.get(0))) { //若当前路径不能匹配但是有匹配的路径则直接输出最接近的路径
+                if (transferTime.equals("1")) {
+                    oneChangeNo++;
+                    if (flagChange) { //如果都满足一次换乘，找出时间上最接近的路径
+                        if (time <= realTime && time >= closeTime) {
+                            flagIsChange = true;
+                            closeTime = time;
+                            closeLine = thisLine;
+                        }
+                        if (Objects.equals(oneChangeNo, changeTimeList.get(0))) {//若当前的换乘数目路径为最后一条一次换乘路径
                             matchedLine = closeLine;
                             break;
                         }
+                    } else if (!flagIsChange && valueNo == value.size() - 1) {//若仍没有匹配的路径则输入时间上最接近的一条路径
+                        //System.out.println("No Matched Line in the path! get the time nearby Line");
+                        matchedLine = CloseTimeLine(value, realTime);
                         break;
-                    case "2":
-                        twoChangeNo++;
-                        if (flagChange) {
-                            if (time <= realTime && time >= closeTime) {
-                                flagIsChange = true;
-                                closeTime = time;
-                                closeLine = thisLine;
-                            }
-                            if (Objects.equals(twoChangeNo, changeTimeList.get(1))) {
-                                matchedLine = closeLine;
-                                break;
-                            }
-                        } else if (!flagIsChange && valueNo == value.size() - 1) {//若仍没有匹配的路径则输入时间上最接近的一条路径
-                            System.out.println("No Matched Line in the path! get the time nearby Line");
-                            matchedLine = CloseTimeLine(value, realTime);
-                            break;
-                        } else if (flagIsChange && Objects.equals(oneChangeNo, changeTimeList.get(1))) {
+                    } else if (flagIsChange && Objects.equals(oneChangeNo, changeTimeList.get(0))) { //若当前路径不能匹配但是有匹配的路径则直接输出最接近的路径
+                        matchedLine = closeLine;
+                        break;
+                    }
+
+                } else if (transferTime.equals("2")) {
+                    twoChangeNo++;
+                    if (flagChange) {
+                        if (time <= realTime && time >= closeTime) {
+                            flagIsChange = true;
+                            closeTime = time;
+                            closeLine = thisLine;
+                        }
+                        if (Objects.equals(twoChangeNo, changeTimeList.get(1))) {
                             matchedLine = closeLine;
                             break;
                         }
+                    } else if (!flagIsChange && valueNo == value.size() - 1) {//若仍没有匹配的路径则输入时间上最接近的一条路径
+                        //System.out.println("No Matched Line in the path! get the time nearby Line");
+                        matchedLine = CloseTimeLine(value, realTime);
                         break;
-                    case "3":
-                        threeChangeNo++;
-                        if (flagChange) {
-                            if (time <= realTime && time >= closeTime) {
-                                flagIsChange = true;
-                                closeTime = time;
-                                closeLine = thisLine;
-                            }
-                            if (Objects.equals(threeChangeNo, changeTimeList.get(2))) {
-                                matchedLine = closeLine;
-                                break;
-                            }
-                        } else if (!flagIsChange && valueNo == value.size() - 1) {//若仍没有匹配的路径则输入时间上最接近的一条路径
-                            System.out.println("No Matched Line in the path! get the time nearby Line");
-                            matchedLine = CloseTimeLine(value, realTime);
-                            break;
-                        } else if (flagIsChange && Objects.equals(oneChangeNo, changeTimeList.get(2))) {
+                    } else if (flagIsChange && Objects.equals(twoChangeNo, changeTimeList.get(1))) {
+                        matchedLine = closeLine;
+                        break;
+                    }
+
+                } else if (transferTime.equals("3")) {
+                    threeChangeNo++;
+                    if (flagChange) {
+                        if (time <= realTime && time >= closeTime) {
+                            flagIsChange = true;
+                            closeTime = time;
+                            closeLine = thisLine;
+                        }
+                        if (Objects.equals(threeChangeNo, changeTimeList.get(2))) {
                             matchedLine = closeLine;
                             break;
                         }
+                    } else if (!flagIsChange && valueNo == value.size() - 1) {//若仍没有匹配的路径则输入时间上最接近的一条路径
+                        //System.out.println("No Matched Line in the path! get the time nearby Line");
+                        matchedLine = CloseTimeLine(value, realTime);
                         break;
-                    case "4":
-                        fourChangeNo++;
-                        if (flagChange) {
-                            if (time <= realTime && time >= closeTime) {
-                                flagIsChange = true;
-                                closeTime = time;
-                                closeLine = thisLine;
-                            }
-                            if (Objects.equals(fourChangeNo, changeTimeList.get(3))) {
-                                matchedLine = closeLine;
-                                break;
-                            }
-                        } else if (!flagIsChange && valueNo == value.size() - 1) {//若仍没有匹配的路径则输入时间上最接近的一条路径
-                            System.out.println("No Matched Line in the path! get the time nearby Line");
-                            matchedLine = CloseTimeLine(value, realTime);
-                            break;
-                        } else if (flagIsChange && Objects.equals(oneChangeNo, changeTimeList.get(3))) {
+                    } else if (flagIsChange && Objects.equals(threeChangeNo, changeTimeList.get(2))) {
+                        matchedLine = closeLine;
+                        break;
+                    }
+
+                } else if (transferTime.equals("4")) {
+                    fourChangeNo++;
+                    if (flagChange) {
+                        if (time <= realTime && time >= closeTime) {
+                            flagIsChange = true;
+                            closeTime = time;
+                            closeLine = thisLine;
+                        }
+                        if (Objects.equals(fourChangeNo, changeTimeList.get(3))) {
                             matchedLine = closeLine;
                             break;
                         }
+                    } else if (!flagIsChange && valueNo == value.size() - 1) {//若仍没有匹配的路径则输入时间上最接近的一条路径
+                        //System.out.println("No Matched Line in the path! get the time nearby Line");
+                        matchedLine = CloseTimeLine(value, realTime);
                         break;
+                    } else if (flagIsChange && Objects.equals(fourChangeNo, changeTimeList.get(3))) {
+                        matchedLine = closeLine;
+                        break;
+                    }
+                } else { //对于4次以上的换乘直接输出时间上最接近的路径
+                    matchedLine = CloseTimeLine(value, realTime);
+                    break;
                 }
             }
         }
@@ -558,10 +565,9 @@ public class MainThread {
                         timeo_change_first = addDayDate(lineTimeTable.get(lineNo_last_no).getStations().get(stationNo).getDate(), dayDate);
                         break;
                     }
-                } else if (lineTimeTable.get(subwayNo).getStations().get(stationNo).getStation().equals(string_D2)) {
+                } else if (subwayNo < lineTimeTable.size() && lineTimeTable.get(subwayNo).getStations().get(stationNo).getStation().equals(string_D2)) {
                     lineNo_last_no = matchSubwayNo(lineNo_last, subwayNo, stationNo, downStationTime, dayDate);
                 }
-
             }
         }
         return timeo_change_first;
@@ -581,16 +587,19 @@ public class MainThread {
         Integer trueSubwayNo = null;
         List<BaseSubway> lineTimeTable = lbs.get(lineNo);
 
-        if (subwayNo == 0 && addDayDate(lineTimeTable.get(subwayNo).getStations().get(stationNo).getDate(), dayDate).after(subwayTime)) { //首班车
+        if (subwayNo == 0
+                && (addDayDate(lineTimeTable.get(subwayNo).getStations().get(stationNo).getDate(), dayDate).after(subwayTime)
+                || (addDayDate(lineTimeTable.get(subwayNo).getStations().get(stationNo).getDate(), dayDate).equals(subwayTime)))) { //首班车
             trueSubwayNo = 0;
         } else if (subwayNo != 0
                 && addDayDate(lineTimeTable.get(subwayNo - 1).getStations().get(stationNo).getDate(), dayDate).before(subwayTime) //非首末班车
-                && addDayDate(lineTimeTable.get(subwayNo).getStations().get(stationNo).getDate(), dayDate).after(subwayTime)) {
+                && (addDayDate(lineTimeTable.get(subwayNo).getStations().get(stationNo).getDate(), dayDate).after(subwayTime)
+                || (addDayDate(lineTimeTable.get(subwayNo).getStations().get(stationNo).getDate(), dayDate).equals(subwayTime)))) {
             if (matchThisSubway(subwayTime, addDayDate(lineTimeTable.get(subwayNo - 1).getStations().get(stationNo).getArrivalDate(), dayDate),
                     addDayDate(lineTimeTable.get(subwayNo).getStations().get(stationNo).getArrivalDate(), dayDate))) {
                 trueSubwayNo = subwayNo;
             } else trueSubwayNo = subwayNo - 1;
-        } else if (subwayNo == lineTimeTable.size()-1 && addDayDate(lineTimeTable.get(subwayNo).getStations().get(stationNo).getDate(), dayDate).before(subwayTime)) { //末班车
+        } else if (addDayDate(lineTimeTable.get(subwayNo).getStations().get(stationNo).getDate(), dayDate).before(subwayTime)) { //末班车
             trueSubwayNo = lineTimeTable.size() - 1;
         }
         return trueSubwayNo;
