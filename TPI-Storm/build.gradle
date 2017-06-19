@@ -28,7 +28,5 @@ task "createDirs" << {
 
 //子项目的依赖
 dependencies {
-    testCompile group: 'junit', name: 'junit', version: '4.11'
-    compile 'mysql:mysql-connector-java:6.0.6'
-    compile 'ai.h2o:sparkling-water-examples_2.11:2.0.9'
+
 }
