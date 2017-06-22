@@ -101,7 +101,7 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) extends Serializable
       lonLat += split(8) + "," + split(9)
       count += 1
     }
-    toBusArrivalData(resultArr.toArray,stationMap)
+    toBusArrivalData(resultArr.toArray, stationMap)
   }
 
   /**
@@ -432,46 +432,46 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) extends Serializable
     * @param toStation 分趟后的df
     * @return
     */
-  def toBusArrivalData(toStation: Array[String],stationMap: Map[String, Array[StationData]]): Array[String] = {
+  def toBusArrivalData(toStation: Array[String], stationMap: Map[String, Array[StationData]]): Array[String] = {
     toStation.groupBy { s =>
       val split = s.split(",")
       split(split.length - 1)
     }.flatMap { s =>
-      val list = s._2.sortBy(s=>s.split(",")(11))
-      val map = new mutable.HashMap[String,Int]()
-      list.foreach{s=>
+      val list = s._2.sortBy(s => s.split(",")(11))
+      val map = new mutable.HashMap[String, Int]()
+      list.foreach { s =>
         val key = s.split(",")(17)
-        map.put(key,map.getOrElse(key,0)+1)
+        map.put(key, map.getOrElse(key, 0) + 1)
       }
-      val up = map.getOrElse("up",0)
-      val down = map.getOrElse("down",0)
+      val up = map.getOrElse("up", 0)
+      val down = map.getOrElse("down", 0)
       var direct = "up"
       if (up < down)
         direct = "down"
       val result = new ArrayBuffer[String]()
-      for(i<- 0 until s._2.length-1){
+      for (i <- 0 until s._2.length - 1) {
         val first = list(i).split(",")
-        val next = list(i+1).split(",")
+        val next = list(i + 1).split(",")
         val firstLon = first(8).toDouble
         val firstLat = first(9).toDouble
         val nextLon = next(8).toDouble
         val nextLat = next(9).toDouble
-        val stationArray = stationMap.getOrElse(first(16)+","+direct,Array())
+        val stationArray = stationMap.getOrElse(first(16) + "," + direct, Array())
         var minDiff = Double.MaxValue
         var standLocation = 0
         stationArray.foreach { sd =>
-          val ld = LocationUtil.distance(firstLon, firstLat,sd.stationLon,sd.stationLat)
-          val rd = LocationUtil.distance(nextLon, nextLat,sd.stationLon,sd.stationLat)
-          val pd = LocationUtil.distance(firstLon,firstLat,nextLon,nextLat)
-          val diff = ld+rd-pd
-          if (diff < minDiff){
+          val ld = LocationUtil.distance(firstLon, firstLat, sd.stationLon, sd.stationLat)
+          val rd = LocationUtil.distance(nextLon, nextLat, sd.stationLon, sd.stationLat)
+          val pd = LocationUtil.distance(firstLon, firstLat, nextLon, nextLat)
+          val diff = ld + rd - pd
+          if (diff < minDiff) {
             minDiff = diff
             standLocation = sd.stationSeqId
           }
         }
-        result += list(i)+","+standLocation+","+minDiff
+        result += list(i) + "," + standLocation + "," + minDiff
       }
-      result += list(s._2.length-1)+",0,0"
+      result += list(s._2.length - 1) + ",0,0"
       result
     }.toArray
   }
@@ -528,24 +528,38 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) extends Serializable
 
   /**
     * 分趟算法结果评价验证方法
+    * 说明：只做趟次划分正确性的验证，对趟次进行可视化
+    * 效率比较慢，最好在zeppelin上面用
+    * 必须传入 toStation后的数据
+    *
+    * @param carId 车牌号
+    * @param date 日期
+    * @param toStation 分趟后数据
+    * @param bMapStation 站点信息
+    * @return df（TripVisualization）
     */
-  def tripConfirm(carId:String,toStation:DataFrame,bMapStation:Broadcast[Map[String,Array[StationData]]]): Unit ={
-    toStation.filter(col("carId") === carId).select("carId","lon","lat","route","direct","upTime","tripId")
-        .sort("upTime").groupByKey(row=> row.getString(row.fieldIndex("carId")))
-        .flatMapGroups{ (key,it) =>
-          val arr = new ArrayBuffer[Point]()
-          val result = new ArrayBuffer[String]()
-          val row_0 = it.take(1).toArray
-          val mapKey = row_0(0).getString(row_0(0).fieldIndex("route"))+","+row_0(0).getString(row_0(0).fieldIndex("direct"))
-          val station = bMapStation.value.getOrElse(mapKey, Array()).map(sd => Point(sd.stationLon, sd.stationLat))
-          it.foreach { data =>
-            val point = new Point(data.getDouble(data.fieldIndex("lon")), data.getDouble(data.fieldIndex("lat")))
-            arr.+=(point)
-            val dis = FrechetUtils.compareGesture(arr.toArray, station)
-            result += data+","+dis
-          }
-          result.iterator
+  def tripConfirm(carId: String, date: String, toStation: DataFrame, bMapStation: Broadcast[Map[String, Array[StationData]]]): DataFrame = {
+    val dateContains = udf { (upTime: String) =>
+      upTime.contains(date)
+    }
+    toStation.filter(col("carId") === carId && dateContains(col("upTime"))).select("carId", "lon", "lat", "route", "direct", "upTime", "tripId")
+      .sort("upTime").groupByKey(row => row.getString(row.fieldIndex("carId")))
+      .flatMapGroups { (key, it) =>
+        val arr = new ArrayBuffer[Point]()
+        val result = new ArrayBuffer[TripVisualization]()
+        val row_0 = it.take(1).toArray
+        val mapKey = row_0(0).getString(row_0(0).fieldIndex("route")) + "," + row_0(0).getString(row_0(0).fieldIndex("direct"))
+        val station = bMapStation.value.getOrElse(mapKey, Array()).map(sd => Point(sd.stationLon, sd.stationLat))
+        var index = 0
+        it.foreach { data =>
+          val point = new Point(data.getDouble(data.fieldIndex("lon")), data.getDouble(data.fieldIndex("lat")))
+          arr.+=(point)
+          val dis = FrechetUtils.compareGesture(arr.toArray, station)
+          result += TripVisualization(index, data.getInt(data.fieldIndex("tripId")), dis)
+          index += 1
         }
+        result.iterator
+      }.toDF()
   }
 
   /**

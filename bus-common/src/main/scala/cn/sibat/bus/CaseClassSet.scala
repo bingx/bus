@@ -50,6 +50,15 @@ case class Trip(carId: String, route: String, direct: String, firstSeqIndex: Int
 }
 
 /**
+  * 趟次可视化实体类
+  *
+  * @param index 序号
+  * @param tripId 趟次
+  * @param frechetDistance 弗雷歇距离
+  */
+case class TripVisualization(index:Int,tripId:Int,frechetDistance:Double)
+
+/**
   * Created by kong on 2017/6/22.
   */
 case class CaseClassSet()
