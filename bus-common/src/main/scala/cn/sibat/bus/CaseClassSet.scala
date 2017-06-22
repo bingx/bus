@@ -59,6 +59,18 @@ case class Trip(carId: String, route: String, direct: String, firstSeqIndex: Int
 case class TripVisualization(index:Int,tripId:Int,frechetDistance:Double)
 
 /**
+  * 公交到站可视化实体
+  * @param carId 车牌号
+  * @param lon 经度
+  * @param lat 纬度
+  * @param route 线路
+  * @param direct 方向
+  * @param upTime 上传时间
+  * @param tripId 班次号
+  */
+case class BusArrivalForVisual(carId:String, lon:Double, lat:Double, route:String, direct:String, upTime:String, tripId:Int)
+
+/**
   * Created by kong on 2017/6/22.
   */
 case class CaseClassSet()
