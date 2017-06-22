@@ -28,9 +28,6 @@ task "createDirs" << {
 
 /*类库配置*/
 repositories {
-    /**maven的阿里云库*/
-    repositories { maven { url 'http://maven.aliyun.com/nexus/content/groups/public/' }}
-    // mavenLocal()
     /*默认库*/
     mavenCentral()
 }
