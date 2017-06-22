@@ -10,55 +10,6 @@ import org.apache.spark.storage.StorageLevel
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
-/**
-  * 站点数据
-  * 线路，来回站点标识（上行01,下行02），站点Id，站点名称，站点序号，站点经度，站点纬度
-  * Created by kong on 2017/4/11.
-  *
-  * @param route        线路
-  * @param direct       方向
-  * @param stationId    站点ID
-  * @param stationName  站点名称
-  * @param stationSeqId 站点序号
-  * @param stationLon   站点经度
-  * @param stationLat   站点纬度
-  */
-case class StationData(route: String, direct: String, stationId: String, stationName: String, stationSeqId: Int, stationLon: Double, stationLat: Double)
-
-/**
-  * 公交刷卡数据
-  *
-  * @param rId         记录编码
-  * @param lId         卡片逻辑编码
-  * @param term        终端编码
-  * @param tradeType   交易类型
-  * @param time        拍卡时间
-  * @param companyName 公司名称
-  * @param route       线路名称
-  * @param carId       车牌号
-  */
-case class BusCardData(rId: String, lId: String, term: String, tradeType: String, time: String, companyName: String, route: String, carId: String)
-
-/**
-  * 公交到站数据
-  *
-  * @param raw            列名
-  * @param carId          车牌号
-  * @param arrivalTime    到达时间
-  * @param leaveTime      离开时间
-  * @param nextStation    下一站点
-  * @param firstStation   前一站点
-  * @param arrivalStation 到达站点
-  * @param stationSeqId   站点序号
-  * @param tripId         班次号
-  */
-case class BusArrivalData(raw: String, carId: String, arrivalTime: String, leaveTime: String, nextStation: String
-                          , firstStation: String, arrivalStation: String, stationSeqId: Long, tripId: String)
-
-case class Trip(carId: String, route: String, direct: String, firstSeqIndex: Int, ld: Double, nextSeqIndex: Int, rd: Double, tripId: Int) {
-  override def toString: String = route + "," + direct + "," + firstSeqIndex + "," + ld + "," + nextSeqIndex + "," + rd
-}
-
 class RoadInformation(busDataCleanUtils: BusDataCleanUtils) extends Serializable {
 
   import busDataCleanUtils.data.sparkSession.implicits._
@@ -476,7 +427,7 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) extends Serializable
     * 首先取gpsA点与B，计算AB与各站点的距离ld与rd，AB的距离pd
     * diff = ld+rd-pd，取最小的diff，作为站点的到站gps点
     * 因为diff最小说明两gps点刚好在站点的左右两边。
-    * 所以AB两gps点就是线路站点b的到站点，BC作为c的到站gpd点。
+    * 所以AB两gps点就是线路站点b的到站点，BC作为c的到站点。
     *
     * @param toStation 分趟后的df
     * @return
@@ -573,6 +524,28 @@ class RoadInformation(busDataCleanUtils: BusDataCleanUtils) extends Serializable
     */
   def toOD(): Unit = {
 
+  }
+
+  /**
+    * 分趟算法结果评价验证方法
+    */
+  def tripConfirm(carId:String,toStation:DataFrame,bMapStation:Broadcast[Map[String,Array[StationData]]]): Unit ={
+    toStation.filter(col("carId") === carId).select("carId","lon","lat","route","direct","upTime","tripId")
+        .sort("upTime").groupByKey(row=> row.getString(row.fieldIndex("carId")))
+        .flatMapGroups{ (key,it) =>
+          val arr = new ArrayBuffer[Point]()
+          val result = new ArrayBuffer[String]()
+          val row_0 = it.take(1).toArray
+          val mapKey = row_0(0).getString(row_0(0).fieldIndex("route"))+","+row_0(0).getString(row_0(0).fieldIndex("direct"))
+          val station = bMapStation.value.getOrElse(mapKey, Array()).map(sd => Point(sd.stationLon, sd.stationLat))
+          it.foreach { data =>
+            val point = new Point(data.getDouble(data.fieldIndex("lon")), data.getDouble(data.fieldIndex("lat")))
+            arr.+=(point)
+            val dis = FrechetUtils.compareGesture(arr.toArray, station)
+            result += data+","+dis
+          }
+          result.iterator
+        }
   }
 
   /**

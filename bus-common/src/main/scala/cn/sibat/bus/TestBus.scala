@@ -1,7 +1,10 @@
 package cn.sibat.bus
 
+import java.net.URI
 import java.util.UUID
 
+import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop.fs.LocalFileSystem
 import org.apache.spark.sql.{DataFrame, Dataset, Row, SparkSession}
 import org.apache.spark.sql.functions._
 
@@ -71,11 +74,11 @@ object TestBus {
     //    }
     //    println(max2.mkString(","))
 
-    //    val spark = SparkSession.builder().config("spark.sql.warehouse.dir", "file:///c:/path/to/my").appName("T").master("local[*]").getOrCreate()
+        val spark = SparkSession.builder().config("spark.sql.warehouse.dir", "file:///c:/path/to/my").appName("T").master("local[*]").getOrCreate()
     //    val rdd = spark.sparkContext.parallelize(0 to 100)
     //    rdd.saveAsTextFile("D://testData/test/textFile")
     //    rdd.saveAsObjectFile("D://testData/test/objectFile")
-    //    import spark.implicits._
+        import spark.implicits._
     //    val df = rdd.toDF()
     //    df.write.parquet("D://testData/test/parquet")
     //    df.map(_.toString()).write.text("D://testData/test/text")
@@ -92,5 +95,12 @@ object TestBus {
     //    val filter = data.filter(s=>s.split(",").length > 16)
     //    println(filter.map(_.split(",")(3)).distinct().count())
     //    filter.rdd.sortBy(s=>s.split(",")(3)).repartition(1).saveAsTextFile("D:/testData/公交处/arrivalTime")
+
+    //新旧对比无线路列表
+//    val nowNot = spark.read.textFile("D:/testData/公交处/noRoute2").collect()
+//    val old = spark.read.textFile("file:///D:/testData/公交处/noRoute3")
+//    old.filter(s=>nowNot.contains(s)).map(s=> s.replace("��","粤")).collect()
+
+    spark.read.textFile("D:/testData/公交处/data/STRING_20161201").filter(s=> s.split(",").length>16).show(20,false)
   }
 }

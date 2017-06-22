@@ -22,14 +22,15 @@ object StationDataTest {
     val spark = SparkSession.builder().config("spark.sql.warehouse.dir", "file:///c:/path/to/my").appName("StationDataTest").master("local[*]").getOrCreate()
     //spark.sparkContext.setLogLevel("ERROR")
     import spark.implicits._
-    val station = spark.read.textFile("D:/testData/公交处/lineInfo.csv").map { str =>
+    val station = spark.read.textFile("D:/testData/公交处/newLine.csv").map { str =>
       val Array(route, direct, stationId, stationName, stationSeqId, stationLat, stationLon) = str.split(",")
       val Array(lat,lon) = LocationUtil.gcj02_To_84(stationLat.toDouble,stationLon.toDouble).split(",")
       new StationData(route, direct, stationId, stationName, stationSeqId.toInt, lon.toDouble, lat.toDouble)
     }.collect()
-    val bStation = spark.sparkContext.broadcast(station)
+    //val bStation = spark.sparkContext.broadcast(station)
 
-    //val mapStation = station.groupBy(sd => sd.route + "," + sd.direct)
+    val mapStation = station.groupBy(sd => sd.route + "," + sd.direct)
+    val bMapStation = spark.sparkContext.broadcast(mapStation)
 
     //查看某辆车
     //    val filter_1 = udf{(carId:String)=>
@@ -92,12 +93,17 @@ object StationDataTest {
 
 
     //线路匹配
-    val data = spark.read.textFile("D:/testData/公交处/data/2016-12-01/*/*")
+    val data = spark.read.textFile("D:/testData/公交处/data/2017-06-18/*/*")
     val busDataCleanUtils = new BusDataCleanUtils(data.toDF())
     val filter = busDataCleanUtils.dataFormat().zeroPoint().filterStatus() //.data.filter(col("carId") === lit("��B87642")) //��B89863
-    val roadInformation = new RoadInformation(filter)
+//    val roadInformation = new RoadInformation(filter)
+//
+//    roadInformation.toStation(bStation)
 
-    roadInformation.toStation(bStation)
+    //无线路问题
+//    filter.data.map(row => row.getString(row.fieldIndex("route"))+","+row.getString(row.fieldIndex("carId"))).distinct().filter{ row =>
+//      bMapStation.value.getOrElse(row.split(",")(0),Array()).isEmpty
+//    }.repartition(1).rdd.saveAsTextFile("D:/testData/公交处/noRoute3")
 
     //查看某条线路
     //    val time2date = udf { (upTime: String) =>
@@ -254,6 +260,26 @@ object StationDataTest {
 //    val collect = spark.read.textFile("D:/testData/公交处/B90036ToRight1").collect()
 //    collect.foreach { s =>
 //    }
+
+    //分趟验证
+    import spark.implicits._
+    spark.read.textFile("D:/testData/公交处/03570BusArrival.txt").map(s=>{
+      val split = s.split(",")
+      1+","+split(8)+","+split(9)+","+split(11)+","+split(22)
+    }).rdd.sortBy(s=>s.split(",")(3)).groupBy(s=>s.split(",")(0)).flatMap(s=>{
+      val arr = new ArrayBuffer[Point]()
+      val result = new ArrayBuffer[String]()
+      val station = bMapStation.value.getOrElse("03570,up", Array()).map(sd => Point(sd.stationLon, sd.stationLat))
+      s._2.foreach { data =>
+        val split = data.split(",")
+        val point = new Point(split(1).toDouble, split(2).toDouble)
+        arr.+=(point)
+        val dis = FrechetUtils.compareGesture(arr.toArray, station)
+        result += data+","+dis
+      }
+      result.iterator
+    }).count()
+    //.saveAsTextFile("D:/testData/公交处/03570BusArrivalConfirm")
   }
 
   def toArrTrip(split: Array[String]): Array[TripTest] = {
