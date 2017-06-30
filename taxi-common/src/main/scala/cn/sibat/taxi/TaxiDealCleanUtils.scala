@@ -34,7 +34,7 @@ class TaxiDealCleanUtils(val data:DataFrame) extends Serializable{
   def dataFormat():TaxiDealCleanUtils = {
     var colType = Array("String")
     colType = colType ++ ("String," * 2).split(",") ++ ("Double," * 2).split(",") ++ "String".split(",") ++
-      "Double".split(",") ++ ("String," * 10).split(",")
+      ("Double,"*2).split(",") ++ ("String," * 9).split(",")
     val cols = Array("carId","upTime","downTime","singlePrice","runningDistance","runTime","sumPrice","emptyDistance",
       "consumptionId","consumptionPre","consumptionAft","cutNumber","cutTime","overDistance","overNumber",
       "license","dealId")
@@ -70,7 +70,7 @@ class TaxiDealCleanUtils(val data:DataFrame) extends Serializable{
       }
       val bd = TaxiDeal(carId,row.getString(row.fieldIndex("upTime")),row.getString(row.fieldIndex("downTime")),
         row.getDouble(row.fieldIndex("singlePrice")),row.getDouble(row.fieldIndex("runningDistance")),row.getString(row.fieldIndex("runTime")),
-        row.getDouble(row.fieldIndex("sumPrice")),row.getString(row.fieldIndex("emptyDistance")),row.getString(row.fieldIndex("consumptionId")),
+        row.getDouble(row.fieldIndex("sumPrice")),row.getDouble(row.fieldIndex("emptyDistance")),row.getString(row.fieldIndex("consumptionId")),
         row.getString(row.fieldIndex("consumptionPre")),row.getString(row.fieldIndex("consumptionAft")),row.getString(row.fieldIndex("cutNumber")),
         row.getString(row.fieldIndex("cutTime")),row.getString(row.fieldIndex("overDistance")),row.getString(row.fieldIndex("overNumber")),
         row.getString(row.fieldIndex("license")),row.getString(row.fieldIndex("dealId"))
@@ -98,7 +98,7 @@ class TaxiDealCleanUtils(val data:DataFrame) extends Serializable{
       }
       val bd = TaxiDeal(row.getString(row.fieldIndex("carId")),time1,time2,
         row.getDouble(row.fieldIndex("singlePrice")),row.getDouble(row.fieldIndex("runningDistance")),row.getString(row.fieldIndex("runTime")),
-        row.getDouble(row.fieldIndex("sumPrice")),row.getString(row.fieldIndex("emptyDistance")),row.getString(row.fieldIndex("consumptionId")),
+        row.getDouble(row.fieldIndex("sumPrice")),row.getDouble(row.fieldIndex("emptyDistance")),row.getString(row.fieldIndex("consumptionId")),
         row.getString(row.fieldIndex("consumptionPre")),row.getString(row.fieldIndex("consumptionAft")),row.getString(row.fieldIndex("cutNumber")),
         row.getString(row.fieldIndex("cutTime")),row.getString(row.fieldIndex("overDistance")),row.getString(row.fieldIndex("overNumber")),
         row.getString(row.fieldIndex("license")),row.getString(row.fieldIndex("dealId"))
@@ -127,7 +127,7 @@ class TaxiDealCleanUtils(val data:DataFrame) extends Serializable{
         }
         val bd = TaxiDeal(row.getString(row.fieldIndex("carId")),time1,time2,
           row.getDouble(row.fieldIndex("singlePrice")),row.getDouble(row.fieldIndex("runningDistance")),row.getString(row.fieldIndex("runTime")),
-          row.getDouble(row.fieldIndex("sumPrice")),row.getString(row.fieldIndex("emptyDistance")),row.getString(row.fieldIndex("consumptionId")),
+          row.getDouble(row.fieldIndex("sumPrice")),row.getDouble(row.fieldIndex("emptyDistance")),row.getString(row.fieldIndex("consumptionId")),
           row.getString(row.fieldIndex("consumptionPre")),row.getString(row.fieldIndex("consumptionAft")),row.getString(row.fieldIndex("cutNumber")),
           row.getString(row.fieldIndex("cutTime")),row.getString(row.fieldIndex("overDistance")),row.getString(row.fieldIndex("overNumber")),
           row.getString(row.fieldIndex("license")),row.getString(row.fieldIndex("dealId")))
@@ -157,7 +157,7 @@ class TaxiDealCleanUtils(val data:DataFrame) extends Serializable{
       val date = row.getString(row.fieldIndex("upTime")).split("T")(0)
       val bd = TaxiDealClean(row.getString(row.fieldIndex("carId")),date,row.getString(row.fieldIndex("upTime")),row.getString(row.fieldIndex("downTime")),
         row.getDouble(row.fieldIndex("singlePrice")),row.getDouble(row.fieldIndex("runningDistance")),row.getString(row.fieldIndex("runTime")),
-        row.getDouble(row.fieldIndex("sumPrice")),row.getString(row.fieldIndex("emptyDistance")),row.getString(row.fieldIndex("color")),row.getString(row.fieldIndex("company")))
+        row.getDouble(row.fieldIndex("sumPrice")),row.getDouble(row.fieldIndex("emptyDistance")),row.getString(row.fieldIndex("color")),row.getString(row.fieldIndex("company")))
       bd
     })
     result.toDF()
@@ -168,45 +168,45 @@ class TaxiDealCleanUtils(val data:DataFrame) extends Serializable{
 /**
   * 出租车打表数据（清洗前)
   * 路径：/parastor/backup/data/sztbdata/TAXIMETERS_DEAL_*
-  * @param carId
-  * @param upTime
-  * @param downTime
-  * @param singlePrice
-  * @param runningDistance
-  * @param runTime
-  * @param sumPrice
-  * @param emptyDistance
-  * @param consumptionId
-  * @param consumptionPre
-  * @param consumptionAft
-  * @param cutNumber
-  * @param cutTime
-  * @param overDistance
-  * @param overNumber
-  * @param license
-  * @param dealId
+  * @param carId 车牌号
+  * @param upTime 上车时间
+  * @param downTime 下车时间
+  * @param singlePrice 单价
+  * @param runningDistance 营业里程
+  * @param runTime 计时时间
+  * @param sumPrice 金额
+  * @param emptyDistance 空驶里程
+  * @param consumptionId 消费卡卡号
+  * @param consumptionPre 消费卡原额
+  * @param consumptionAft 消费卡余额
+  * @param cutNumber 空车断电次数
+  * @param cutTime 空车断电时间
+  * @param overDistance 超速里程
+  * @param overNumber 超速次数
+  * @param license 准许证
+  * @param dealId 交易序号
   */
 case class TaxiDeal(carId:String,upTime:String,downTime:String,singlePrice:Double,runningDistance:Double,runTime:String,
-                    sumPrice:Double,emptyDistance:String,consumptionId:String,consumptionPre:String,consumptionAft:String,
+                    sumPrice:Double,emptyDistance:Double,consumptionId:String,consumptionPre:String,consumptionAft:String,
                     cutNumber:String,cutTime:String,overDistance:String,overNumber:String,license:String,dealId:String
                    )
 
 /**
   * 出租车打表数据（清洗后）
   * 路径：/parastor/backup/datum/taxi/deal/
-  * @param carId
-  * @param upTime
-  * @param downTime
-  * @param singlePrice
-  * @param runningDistance
-  * @param runTime
-  * @param sumPrice
-  * @param emptyDistance
-  * @param color
-  * @param company
+  * @param carId 车牌号
+  * @param upTime 上车时间
+  * @param downTime 下车时间
+  * @param singlePrice 单价
+  * @param runningDistance 营业里程
+  * @param runTime 计时时间
+  * @param sumPrice 金额
+  * @param emptyDistance 空驶里程
+  * @param color 车租车车型
+  * @param company 所属公司
   */
 case class TaxiDealClean(carId:String,date:String,upTime:String,downTime:String,singlePrice:Double,runningDistance:Double,runTime:String,
-                         sumPrice:Double,emptyDistance:String,color:String,company:String)
+                         sumPrice:Double,emptyDistance:Double,color:String,company:String)
 
 /**
   * 出租车静态信息

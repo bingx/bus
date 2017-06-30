@@ -4,6 +4,7 @@ package cn.sibat.taxi
 import java.text.SimpleDateFormat
 
 import cn.sibat.bus.DataFrameUtils
+import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.functions._
 
@@ -39,7 +40,8 @@ class TaxiDataCleanUtils(val data:DataFrame) extends Serializable{
     colType = colType ++ ("Double," * 2).split(",") ++ ("String," * 2).split(",") ++ ("String," * 7).split(",")
     val cols = Array("carId","lon","lat","time","SBH","speed","direction","locationStatus",
        "X","SMICarid","carStatus","carColor")
-    newUtils(DataFrameUtils.apply.col2moreCol(data.toDF(),"value",colType,cols: _*))
+    val result = DataFrameUtils.apply.col2moreCol(data.toDF(),"value",colType,cols: _*)
+    newUtils(result.toDF())
   }
 
   /**
@@ -242,18 +244,18 @@ class TaxiDataCleanUtils(val data:DataFrame) extends Serializable{
 /**
   * 清洗前的出租车GPS数据：/parastor/backup/data/sztbdata/GPS_*
   * 清洗后的出租车GPS数据：/parastor/backup/datum/taxi/gps/
-  * @param carId
-  * @param lon
-  * @param lat
-  * @param time
-  * @param SBH
-  * @param speed
-  * @param direction
-  * @param locationStatus
-  * @param X
-  * @param SMICarid
-  * @param carStatus
-  * @param carColor
+  * @param carId 车牌号
+  * @param lon 经度
+  * @param lat 纬度
+  * @param time 上传时间
+  * @param SBH 设备号
+  * @param speed 速度
+  * @param direction 方向
+  * @param locationStatus 定位状态
+  * @param X 未知
+  * @param SMICarid SIM卡号
+  * @param carStatus 车辆状态
+  * @param carColor 车辆颜色
   */
 case class TaxiData(carId:String,lon:Double,lat:Double,time:String,SBH:String,speed:String,direction:String,
                     locationStatus:String,X:String,SMICarid:String,carStatus:String,carColor:String)
