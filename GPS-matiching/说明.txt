@@ -1,0 +1,12 @@
+1.编辑一个shell脚本内容如
+
+#这个行代码拼接输入文件名包括路径
+fileName=/data/datum/coach/2015-06-$1
+echo ${fileName}
+#执行jar文件，四种数据四个主函数更改jar文件的类名如com.sibat.traffic.ProvRoadHistoryData，com.sibat.traffic.TaxiHistoryData，com.sibat.traffic.E6HistioryData 或者
+java -cp RealStormTrafficOffLine-1.0-SNAPSHOT-jar-with-dependencies.jar com.sibat.traffic.TaxiHistoryData ${fileName} >test.log
+
+
+
+2.运行命令，循环运行脚本文件
+#for i in {01,02,03,04,05,06,07}; do sh start_shell.sh $i;done;
